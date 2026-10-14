@@ -1,0 +1,45 @@
+services:
+  server-streampack:
+    image: nexus.streampack.dev/images/server-streampack:${STREAMPACK_VERSION:?set STREAMPACK_VERSION in .env}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/streampack
+      DB_USERNAME: streampack
+      STREAMPACK_MEDIA_DIR: /opt/streampack/media
+      STREAMPACK_GENERATIVE_PROMPT_DIR: /opt/streampack/generative
+      # The setup tool reads this with `docker compose exec`; it never leaves the container.
+      STREAMPACK_LOCAL_ADMIN_TOKEN_FILE: /run/streampack/admin-token
+    depends_on:
+      db:
+        condition: service_healthy
+    # The API, for a reverse proxy on the same box. Use "8080:8080" to reach it from elsewhere.
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - media:/opt/streampack/media
+      - ./generative:/opt/streampack/generative:ro
+    tmpfs:
+      - /run/streampack:mode=0700
+    # For the stdin console (CONSOLE_ENABLED=true); see "Use the Console in Docker".
+    stdin_open: true
+    tty: true
+
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: streampack
+      POSTGRES_USER: streampack
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      # postgres:18 keeps its data under /var/lib/postgresql/18/docker.
+      - pgdata:/var/lib/postgresql/18/docker
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U streampack -d streampack"]
+      interval: 5s
+      retries: 12
+
+volumes:
+  pgdata:
+  media:
