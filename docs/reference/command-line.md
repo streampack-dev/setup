@@ -1,7 +1,7 @@
 # Command Line
 
 ```text
-streampack-setup [-dir DIR] [-url URL] [command]
+streampack-setup [-dir DIR] [-url URL] [-hard-reset] [command]
 ```
 
 ## Flags
@@ -10,6 +10,7 @@ streampack-setup [-dir DIR] [-url URL] [command]
 |------|---------|---------|
 | `-dir` | `.` | The deployment directory, holding `.env`, `compose.yaml` and `generative/`. Every `docker compose` command runs here. |
 | `-url` | `http://127.0.0.1:8080` | Where the server answers from this box. The compose file publishes the API on `127.0.0.1:8080`. |
+| `-hard-reset` | off | First delete the deployment: its containers, volumes and networks, `.env`, the compose file and any override, and `generative/`. You confirm by typing the directory's name. Then run as a first run. Goes with no command, or with `init`; with any other command it exits with status 2. See [Start Over](../how-to/start-over.md). |
 
 Flags go before the command.
 
@@ -45,5 +46,5 @@ Ctrl-C stops the current step and exits with status 0. Nothing half-written is l
 | Status | Meaning |
 |--------|---------|
 | 0 | Done, or interrupted. |
-| 1 | A step failed. The message starts with `streampack-setup:`. |
-| 2 | Unknown command. |
+| 1 | A step failed, or a hard reset was not confirmed. The message starts with `streampack-setup:`. |
+| 2 | Unknown command, or `-hard-reset` with a command other than `init`. |

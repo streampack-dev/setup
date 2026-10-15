@@ -1,6 +1,6 @@
 # Recover a Refused Start
 
-`streampack-setup up` stops, with an explanation, when the server won't start. This page covers each reason it gives.
+`./streampack-setup up` stops, with an explanation, when the server won't start. This page covers each reason it gives.
 
 ## A Credential Has No Variable
 
@@ -34,12 +34,12 @@ streampack-setup: the server didn't start: the database refused the password in 
 
 The database keeps the password it was given when it was first made, and ignores `DB_PASSWORD` after that. This message means `.env` has a different one, usually because `.env` was deleted and written again while the database volume stayed. `up` stops as soon as the log shows it, rather than waiting out its 5 minutes.
 
-- **To keep the data,** put the original password back in `.env` as `DB_PASSWORD`, from a backup of `.env`, and run `streampack-setup up`.
+- **To keep the data,** put the original password back in `.env` as `DB_PASSWORD`, from a backup of `.env`, and run `./streampack-setup up`.
 - **To start afresh,** losing everything in the database:
 
   ```bash
   docker compose down -v
-  streampack-setup up
+  ./streampack-setup up
   ```
 
 ## After Losing `.env`
@@ -64,6 +64,8 @@ Even with the database kept, a new `.env` lacks what the old one held:
 - **`JWT_SECRET`.** Everyone is signed out.
 
 Back up `.env` along with the database.
+
+If the deployment is too broken to repair, delete it and start again. See [Start Over](start-over.md).
 
 ## Other Failures
 

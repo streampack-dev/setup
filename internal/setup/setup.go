@@ -277,8 +277,8 @@ func (e *StartupStopped) Error() string {
 		return "the server didn't start: the database refused the password in .env (DB_PASSWORD).\n" +
 			"The database keeps the password it was first given; .env has a different one, usually because\n" +
 			".env was written again after the database was made. Either put the original password in .env\n" +
-			"as DB_PASSWORD and run `streampack-setup up`, or, losing the database's contents, start it afresh:\n" +
-			"  docker compose down -v && streampack-setup up"
+			"as DB_PASSWORD and run `./streampack-setup up`, or, losing the database's contents, start it afresh:\n" +
+			"  docker compose down -v && ./streampack-setup up"
 	}
 	return "the server didn't start:\n" + e.Block
 }

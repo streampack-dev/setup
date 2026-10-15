@@ -83,7 +83,7 @@ func (s *Setup) offerSecrets(ctx context.Context) error {
 		"the next start fails without them. Move them now?", len(needed)), true)
 	if err != nil || !move {
 		if err == nil {
-			fmt.Fprintln(s.Out, "Run `streampack-setup secrets` before the server next restarts.")
+			fmt.Fprintln(s.Out, "Run `./streampack-setup secrets` before the server next restarts.")
 		}
 		return err
 	}

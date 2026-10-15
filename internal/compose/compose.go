@@ -22,6 +22,9 @@ const TokenPath = "/run/streampack/admin-token"
 // Names are the file names Compose looks for, in its order of preference.
 var Names = []string{"compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"}
 
+// Overrides are the override files Compose merges into the compose file when they're there.
+var Overrides = []string{"compose.override.yaml", "compose.override.yml", "docker-compose.override.yaml", "docker-compose.override.yml"}
+
 // Write puts File in dir as compose.yaml unless dir has a compose file by any of Names already; it
 // says whether it wrote.
 func Write(dir string) (bool, error) {

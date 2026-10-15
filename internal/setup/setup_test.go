@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/streampack-dev/setup/internal/docker"
 	"github.com/streampack-dev/setup/internal/envfile"
 	"github.com/streampack-dev/setup/internal/server"
 )
@@ -64,6 +65,9 @@ type fakeDocker struct {
 	// volume is the project's existing database volume, if any; removed records its removal
 	volume  string
 	removed []string
+	// resources is what the project has in Docker; removedResources what a hard reset removed
+	resources        docker.Resources
+	removedResources []docker.Resources
 }
 
 func (f *fakeDocker) Pull(context.Context) error { f.pulls++; return nil }
@@ -97,6 +101,12 @@ func (f *fakeDocker) Volume(_ context.Context, name string) (string, error) {
 }
 func (f *fakeDocker) RemoveVolume(_ context.Context, volume string) error {
 	f.removed = append(f.removed, volume)
+	return nil
+}
+
+func (f *fakeDocker) Resources(context.Context) (docker.Resources, error) { return f.resources, nil }
+func (f *fakeDocker) RemoveResources(_ context.Context, r docker.Resources) error {
+	f.removedResources = append(f.removedResources, r)
 	return nil
 }
 
@@ -492,4 +502,106 @@ func (s *slowScript) Line(p string) (string, error) {
 		}
 	}
 	return line, err
+}
+
+// mangled fills dir with a deployment whose files can't be read, and the tool beside them.
+func mangled(t *testing.T, dir string) {
+	t.Helper()
+	os.WriteFile(filepath.Join(dir, ".env"), []byte("DB_PASSWORD='unterminated\n\x00"), 0o600)
+	os.WriteFile(filepath.Join(dir, "compose.yaml"), []byte("services: [:"), 0o644)
+	os.WriteFile(filepath.Join(dir, "docker-compose.yml"), []byte("old"), 0o644)
+	os.WriteFile(filepath.Join(dir, "compose.override.yaml"), []byte("services: {}"), 0o644)
+	os.MkdirAll(filepath.Join(dir, "generative", "prompts"), 0o755)
+	os.WriteFile(filepath.Join(dir, "generative", "prompts", "mine.txt"), []byte("x"), 0o644)
+	os.WriteFile(filepath.Join(dir, "streampack-setup"), []byte("the tool"), 0o755)
+}
+
+var projectResources = docker.Resources{
+	Containers: []string{"q-server-streampack-1", "q-db-1"},
+	Volumes:    []string{"q_pgdata", "q_media"},
+	Networks:   []string{"q_default"},
+}
+
+func TestHardResetDeletesTheDeploymentAndKeepsTheTool(t *testing.T) {
+	fake := &fakeDocker{resources: projectResources}
+	s, _, out := newSetup(t, nil, fake, "")
+	mangled(t, s.Dir)
+	s.Ask.(*script).answers = []string{filepath.Base(s.Dir)}
+
+	if err := s.HardReset(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if len(fake.removedResources) != 1 || fmt.Sprint(fake.removedResources[0]) != fmt.Sprint(projectResources) {
+		t.Errorf("removed %+v", fake.removedResources)
+	}
+	entries, _ := os.ReadDir(s.Dir)
+	var left []string
+	for _, e := range entries {
+		left = append(left, e.Name())
+	}
+	if strings.Join(left, ",") != "streampack-setup" {
+		t.Errorf("left %v", left)
+	}
+	for _, listed := range []string{"q_pgdata", "q-db-1", "q_default", ".env", "compose.yaml", "docker-compose.yml", "compose.override.yaml", "generative/"} {
+		if !strings.Contains(out.String(), listed) {
+			t.Errorf("didn't list %s:\n%s", listed, out)
+		}
+	}
+}
+
+func TestHardResetDeletesNothingWithoutTheDirectorysName(t *testing.T) {
+	fake := &fakeDocker{resources: projectResources}
+	s, _, out := newSetup(t, []string{"y"}, fake, "")
+	mangled(t, s.Dir)
+
+	err := s.HardReset(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "nothing was deleted") {
+		t.Fatalf("got %v\n%s", err, out)
+	}
+	if len(fake.removedResources) != 0 {
+		t.Errorf("removed %+v", fake.removedResources)
+	}
+	for _, name := range []string{".env", "compose.yaml", "generative"} {
+		if _, err := os.Stat(filepath.Join(s.Dir, name)); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+func TestHardResetWithNothingThereAsksNothing(t *testing.T) {
+	fake := &fakeDocker{}
+	s, ask, out := newSetup(t, nil, fake, "")
+
+	if err := s.HardReset(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(ask.asked) != 0 || len(fake.removedResources) != 0 || !strings.Contains(out.String(), "Nothing to delete") {
+		t.Errorf("asked %v, removed %v:\n%s", ask.asked, fake.removedResources, out)
+	}
+}
+
+func TestAfterAHardResetInitIsAFirstRun(t *testing.T) {
+	fake := &fakeDocker{resources: projectResources}
+	s, ask, out := newSetup(t, nil, fake, "")
+	mangled(t, s.Dir)
+	ask.answers = []string{filepath.Base(s.Dir), "", "root@example.com", "", "", "", "", "", "", "", ""}
+
+	if err := s.HardReset(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// What the reset removed is gone from Docker too.
+	fake.resources, fake.volume = docker.Resources{}, ""
+	if configured, _ := s.Configured(); configured {
+		t.Fatal("still configured")
+	}
+	if err := s.Init(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	env, _ := envfile.Read(filepath.Join(s.Dir, ".env"))
+	if v, _ := env.Get("ADMIN_EMAIL"); v != "root@example.com" {
+		t.Errorf("ADMIN_EMAIL %q", v)
+	}
+	if _, err := os.Stat(filepath.Join(s.Dir, "compose.yaml")); err != nil {
+		t.Error(err)
+	}
 }
