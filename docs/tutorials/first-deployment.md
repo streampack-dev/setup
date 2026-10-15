@@ -1,24 +1,26 @@
 # Your First Deployment
 
-In this tutorial you'll use `streampack-setup` to bring up a `server-streampack` with no integrations, sign in to its console, and take it down again. It takes about ten minutes, most of it spent pulling the images. Any machine with Docker will do, a laptop included.
+In this tutorial you'll use `streampack-setup` to bring up a `server-streampack` with no integrations, sign in to its console, and take it down again. It takes about ten minutes, most of it spent pulling the images. Any machine with Docker will do: a Linux server, or a Mac with Docker Desktop.
 
 Afterwards, streampack's [Deploy with Docker for Mattermost and GitLab](https://github.com/streampack-dev/streampack/blob/main/docs/tutorials/deploy-with-docker-for-mattermost-and-gitlab.md) does the same on a server, and connects it to Mattermost and GitLab.
 
 ## What You Need
 
-- Docker with the Compose plugin, usable without `sudo`:
+- Docker with the Compose plugin, usable without `sudo`. On a Mac, Docker Desktop, running:
 
   ```bash
   docker compose version
   ```
 
-- Port 8080 free on `127.0.0.1`.
+- Port 8080 free on `127.0.0.1`. A development server-streampack (`just run` in streampack) uses it too, so stop that first.
 - The tool, from the [releases](https://github.com/streampack-dev/setup/releases) for your machine (`linux-amd64`, `linux-arm64`, `darwin-amd64` or `darwin-arm64`):
 
   ```bash
-  curl -fLo streampack-setup https://github.com/streampack-dev/setup/releases/latest/download/streampack-setup-linux-amd64
-  chmod +x streampack-setup
+  curl -fLo ~/streampack-setup https://github.com/streampack-dev/setup/releases/latest/download/streampack-setup-linux-amd64
+  chmod +x ~/streampack-setup
   ```
+
+  On an Apple Silicon Mac, that's `streampack-setup-darwin-arm64`. Download it with `curl`, as here: a browser's download is quarantined, and macOS won't run the unsigned binary until you clear it with `xattr -d com.apple.quarantine ~/streampack-setup`.
 
 ## 1. Answer the Questions
 
