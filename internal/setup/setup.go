@@ -86,6 +86,9 @@ func (s *Setup) Init(ctx context.Context) error {
 		return err
 	}
 	fmt.Fprintln(s.Out, "Setting up a server-streampack deployment in "+s.Dir)
+	if err := s.existingDatabase(ctx, env); err != nil {
+		return err
+	}
 
 	version, _ := env.Get("STREAMPACK_VERSION")
 	if version == "" {
@@ -200,6 +203,42 @@ func (s *Setup) Init(ctx context.Context) error {
 	return nil
 }
 
+// existingDatabase handles a .env without DB_PASSWORD beside a database that's already there: a
+// volume left by an earlier run. Postgres keeps the password it was first given, so a newly
+// generated one would never work (#4). It asks for the old password, or deletes the volume.
+func (s *Setup) existingDatabase(ctx context.Context, env *envfile.File) error {
+	if value, ok := env.Get("DB_PASSWORD"); ok && value != "" {
+		return nil
+	}
+	volume, err := s.Docker.Volume(ctx, "pgdata")
+	if err != nil || volume == "" {
+		return err
+	}
+	fmt.Fprintf(s.Out, "This deployment's database already exists (the volume %s), but .env has no DB_PASSWORD.\n"+
+		"The database keeps the password it was first given, so a new one wouldn't open it.\n", volume)
+	password, err := s.Ask.Secret("The existing database's password, blank if you haven't got it")
+	if err != nil {
+		return err
+	}
+	if password != "" {
+		env.Set("DB_PASSWORD", password)
+		return nil
+	}
+	fresh, err := s.Ask.Confirm("Delete "+volume+", and everything in that database, to start afresh?", false)
+	if err != nil {
+		return err
+	}
+	if !fresh {
+		return fmt.Errorf("stopped: put the database's password in .env as DB_PASSWORD, or run this again and "+
+			"let it delete %s", volume)
+	}
+	if err := s.Docker.RemoveVolume(ctx, volume); err != nil {
+		return err
+	}
+	fmt.Fprintln(s.Out, "Deleted "+volume+"; the database starts afresh with a new password.")
+	return nil
+}
+
 // Up pulls the images and starts the services, then waits until the server answers. A start the
 // server's secrets check stops is offered the missing variables, and tried again.
 func (s *Setup) Up(ctx context.Context) error {
@@ -229,14 +268,28 @@ func (s *Setup) Up(ctx context.Context) error {
 type StartupStopped struct {
 	Block     string
 	Variables []string
+	// WrongDatabasePassword is a database that refused DB_PASSWORD (#4)
+	WrongDatabasePassword bool
 }
 
-func (e *StartupStopped) Error() string { return "the server didn't start:\n" + e.Block }
+func (e *StartupStopped) Error() string {
+	if e.WrongDatabasePassword {
+		return "the server didn't start: the database refused the password in .env (DB_PASSWORD).\n" +
+			"The database keeps the password it was first given; .env has a different one, usually because\n" +
+			".env was written again after the database was made. Either put the original password in .env\n" +
+			"as DB_PASSWORD and run `streampack-setup up`, or, losing the database's contents, start it afresh:\n" +
+			"  docker compose down -v && streampack-setup up"
+	}
+	return "the server didn't start:\n" + e.Block
+}
 
 var named = regexp.MustCompile(`(?:requires environment variable|; set) ([A-Z][A-Z0-9_]+)`)
 
 // startupStopped looks in the server's log for a refused start.
 func startupStopped(log string) *StartupStopped {
+	if strings.Contains(log, "password authentication failed for user") {
+		return &StartupStopped{WrongDatabasePassword: true}
+	}
 	start := strings.LastIndex(log, "SECURITY STARTUP CHECK FAILED")
 	if start < 0 {
 		if i := strings.LastIndex(log, "APPLICATION FAILED TO START"); i >= 0 {

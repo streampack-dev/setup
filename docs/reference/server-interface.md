@@ -13,6 +13,15 @@ Every command runs in the deployment directory. The commands that change somethi
 | `docker compose logs --no-color --tail 300 server-streampack` | `up`, while waiting | no |
 | `docker compose exec -T server-streampack cat /run/streampack/admin-token` | `console`, `secrets` | no |
 
+Two plain `docker` commands are used too, without the deployment directory, since `init` can run before it has anything in it:
+
+| Command | Used by | Printed |
+|---------|---------|---------|
+| `docker volume ls -q --filter label=com.docker.compose.project=<project> --filter label=com.docker.compose.volume=pgdata` | `init`, when `.env` has no `DB_PASSWORD` | no |
+| `docker rm -f <the project's containers>`, then `docker volume rm <volume>` | `init`, when you agree to start the database afresh | yes |
+
+`<project>` is the Compose project name: `COMPOSE_PROJECT_NAME` if it's set in the environment, otherwise the directory's name, lower-cased, keeping only letters, digits, `-` and `_`.
+
 ## HTTP
 
 All requests go to `-url` (by default `http://127.0.0.1:8080`). The admin endpoints carry `Authorization: Bearer <token>` with the local admin token. On a 401, the tool reads the token again and retries once.
