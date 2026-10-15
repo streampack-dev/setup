@@ -1,18 +1,24 @@
 # Command Line
 
 ```text
-streampack-setup [-dir DIR] [-url URL] [-hard-reset] [command]
+streampack-setup [--dir DIR] [--url URL] [--hard-reset] [command]
 ```
 
 ## Flags
 
 | Flag | Default | Meaning |
 |------|---------|---------|
-| `-dir` | `.` | The deployment directory, holding `.env`, `compose.yaml`, `generative/`, `ext/` and `media/`. Every `docker compose` command runs here. |
-| `-url` | `http://127.0.0.1:8080` | Where the server answers from this box. The compose file publishes the API on `127.0.0.1:8080`. |
-| `-hard-reset` | off | First delete the deployment: its containers, volumes and networks, `.env`, the compose file and any override, and `media/`. It keeps `generative/` and `ext/`. You confirm by typing the directory's name. Then run as a first run. Goes with no command, or with `init`; with any other command it exits with status 2. See [Start Over](../how-to/start-over.md). |
+| `--dir` | `.` | The deployment directory, holding `.env`, `compose.yaml`, `generative/`, `ext/` and `media/`. Every `docker compose` command runs here. |
+| `--url` | `http://127.0.0.1:8080` | Where the server answers from this box. The compose file publishes the API on `127.0.0.1:8080`. |
+| `--hard-reset` | off | First delete the deployment: its containers, volumes and networks, `.env`, the compose file and any override, and `media/`. It keeps `generative/` and `ext/`. You confirm by typing the directory's name. Then run as a first run. Goes with no command, or with `init`; with any other command it exits with status 2. See [Start Over](../how-to/start-over.md). |
+| `--version`, `-v` | | Prints the tool's version, as the `version` command does, and exits with status 0. |
+| `--help`, `-h` | | Prints the usage and exits with status 0. |
 
-Flags go before the command.
+Flags go before or after the command: `streampack-setup init --hard-reset` is `streampack-setup --hard-reset init`. One dash works as well as two: `-hard-reset` is `--hard-reset`. A value follows its flag, after a space or `=`: `--dir /srv/streampack` or `--dir=/srv/streampack`.
+
+## Output
+
+Every run writes `streampack-setup` and the version first, for example `streampack-setup 0.1.3`, so a run's log says which version ran.
 
 ## Commands
 
@@ -25,7 +31,7 @@ Flags go before the command.
 | `secrets` | Asks for the variables `GET /admin/secrets` names, writes them into `.env`, recreates the server, and checks again. | After the check. |
 | `version` | Prints the tool's version. | |
 
-Any other command prints the usage and exits with status 2.
+Any other command, more than one command, or a flag the tool doesn't know prints the usage and exits with status 2.
 
 ## Console Commands
 
@@ -47,4 +53,4 @@ Ctrl-C stops the current step and exits with status 0. Nothing half-written is l
 |--------|---------|
 | 0 | Done, or interrupted. |
 | 1 | A step failed, or a hard reset was not confirmed. The message starts with `streampack-setup:`. |
-| 2 | Unknown command, or `-hard-reset` with a command other than `init`. |
+| 2 | An unknown command or flag, more than one command, or `--hard-reset` with a command other than `init`. |

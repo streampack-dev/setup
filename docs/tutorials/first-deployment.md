@@ -29,6 +29,7 @@ Run the tool:
 Take the defaults by pressing Enter, except for your email address. Answer no to every integration:
 
 ```text
+streampack-setup 0.1.3
 Setting up a server-streampack deployment in /home/you/streampack
 Server version [1.16.0]:
 The system's name [nevet]:

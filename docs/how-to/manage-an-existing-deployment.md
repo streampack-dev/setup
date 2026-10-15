@@ -36,7 +36,7 @@ Then use it as usual:
 If the API isn't published on `127.0.0.1:8080`, tell the tool where it is:
 
 ```bash
-./streampack-setup -url http://127.0.0.1:9000
+./streampack-setup --url http://127.0.0.1:9000
 ```
 
 `init` adds the keys it generates when they're missing, `DB_PASSWORD` among them. If your database already has a password that isn't in `.env`, add it to `.env` before running `init`. Otherwise `init` generates a new one, which won't match the existing database.

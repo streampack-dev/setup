@@ -36,7 +36,7 @@ It finds the containers, volumes and networks by the Compose project's label. It
 2. Start the hard reset:
 
    ```bash
-   ./streampack-setup -hard-reset
+   ./streampack-setup --hard-reset
    ```
 
 3. Read the list of what it will delete:
@@ -57,4 +57,4 @@ The tool shows each command as it deletes. Then it continues as a first run: it 
 
 ## Only the Reset
 
-`./streampack-setup -hard-reset init` deletes the deployment, then asks the questions and writes the files. It doesn't start the server. Run `./streampack-setup` when you're ready.
+`./streampack-setup --hard-reset init` deletes the deployment, then asks the questions and writes the files. It doesn't start the server. Run `./streampack-setup` when you're ready.

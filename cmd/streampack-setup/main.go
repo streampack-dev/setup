@@ -7,10 +7,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/streampack-dev/setup/internal/docker"
@@ -25,9 +27,9 @@ var version = "development"
 
 const usage = `streampack-setup brings up a server-streampack with Docker Compose, then acts as its console.
 
-Usage: streampack-setup [flags] [command]
+Usage: streampack-setup [flags] [command] [flags]
 
-With -hard-reset, it deletes the deployment first, after you confirm, and then runs as a first run.
+With --hard-reset, it deletes the deployment first, after you confirm, and then runs as a first run.
 
 Commands:
   (none)    init if there's no .env yet, then up, then console
@@ -37,23 +39,82 @@ Commands:
   secrets   move credentials given at the console into .env, and recreate the server
   version   print this tool's version
 
-Flags:
+Flags, before or after the command; one dash works as well as two:
+  --dir DIR      the deployment directory, where .env and compose.yaml are (default ".")
+  --url URL      the server's address from this box (default "http://127.0.0.1:8080")
+  --hard-reset   first delete the deployment (containers, volumes, .env, the compose file,
+                 media/) and start from nothing; it keeps generative/ and ext/
+  --version, -v  print this tool's version
+  --help, -h     print this help
 `
 
-func main() {
-	flags := flag.NewFlagSet("streampack-setup", flag.ExitOnError)
-	dir := flags.String("dir", ".", "the deployment directory, where .env and compose.yaml are")
-	url := flags.String("url", "http://127.0.0.1:8080", "the server's address from this box")
-	hardReset := flags.Bool("hard-reset", false, "first delete the deployment (containers, volumes, .env, the compose file, generative/) and start from nothing")
-	flags.Usage = func() {
-		fmt.Fprint(os.Stderr, usage)
-		flags.PrintDefaults()
+// options is what the command line asks for.
+type options struct {
+	dir, url    string
+	hardReset   bool
+	showVersion bool
+	command     string
+}
+
+// parseArgs reads the flags wherever they are on the line, before or after the command: Go's flag
+// package alone stops at the first word that isn't one, so "init --hard-reset" would run a plain
+// init (#11). More than one command is an error, as is a flag it doesn't know.
+func parseArgs(args []string, stderr io.Writer) (options, error) {
+	o := options{}
+	flags := flag.NewFlagSet("streampack-setup", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	flags.Usage = func() { fmt.Fprint(stderr, usage) }
+	flags.StringVar(&o.dir, "dir", ".", "")
+	flags.StringVar(&o.url, "url", "http://127.0.0.1:8080", "")
+	flags.BoolVar(&o.hardReset, "hard-reset", false, "")
+	flags.BoolVar(&o.showVersion, "version", false, "")
+	flags.BoolVar(&o.showVersion, "v", false, "")
+	var words []string
+	for {
+		if err := flags.Parse(args); err != nil {
+			return o, err
+		}
+		rest := flags.Args()
+		if len(rest) == 0 {
+			break
+		}
+		words = append(words, rest[0])
+		args = rest[1:]
 	}
-	flags.Parse(os.Args[1:])
-	command := flags.Arg(0)
-	if command == "version" {
-		fmt.Println("streampack-setup", version)
+	if len(words) > 1 {
+		return o, fmt.Errorf("one command at a time, not %q", strings.Join(words, " "))
+	}
+	if len(words) == 1 {
+		o.command = words[0]
+	}
+	if o.command == "version" {
+		o.showVersion = true
+	}
+	return o, nil
+}
+
+// banner names the tool and its version, first on every run, so a log shows what ran.
+func banner() string { return "streampack-setup " + version }
+
+func main() {
+	o, err := parseArgs(os.Args[1:], os.Stderr)
+	if errors.Is(err, flag.ErrHelp) {
 		return
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "streampack-setup:", err)
+		fmt.Fprint(os.Stderr, usage)
+		os.Exit(2)
+	}
+	fmt.Println(banner())
+	if o.showVersion {
+		return
+	}
+	command := o.command
+	dir, url, hardReset := &o.dir, &o.url, &o.hardReset
+	if !knownCommand(command) {
+		fmt.Fprint(os.Stderr, usage)
+		os.Exit(2)
 	}
 
 	absolute, err := filepath.Abs(*dir)
@@ -80,7 +141,7 @@ func main() {
 	if *hardReset {
 		// What follows a reset is a first run: everything else needs the deployment it deleted.
 		if command != "" && command != "init" {
-			fmt.Fprintln(os.Stderr, "streampack-setup: -hard-reset goes with no command, or with init")
+			fmt.Fprintln(os.Stderr, "streampack-setup: --hard-reset goes with no command, or with init")
 			os.Exit(2)
 		}
 		check(s.HardReset(ctx))
@@ -107,10 +168,15 @@ func main() {
 		check(s.Console(ctx))
 	case "secrets":
 		check(s.MoveSecrets(ctx))
-	default:
-		flags.Usage()
-		os.Exit(2)
 	}
+}
+
+func knownCommand(c string) bool {
+	switch c {
+	case "", "init", "up", "console", "secrets":
+		return true
+	}
+	return false
 }
 
 func check(err error) {

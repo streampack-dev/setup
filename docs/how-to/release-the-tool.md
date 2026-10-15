@@ -15,7 +15,7 @@ For maintainers. The version is in `VERSION`. Releases are made from `main` with
 
 `just release` refuses to run from a branch other than `main`, from a `main` behind `origin/main`, with uncommitted changes, or when the tag already exists. It runs `just test`, writes the new version to `VERSION`, commits it ("updating release version"), tags `vX.Y.Z`, and pushes `main` and the tag together. If the push fails, it says how to push both by hand.
 
-CI then tests the tag, checks it against `VERSION`, builds static binaries for linux and darwin, amd64 and arm64, with the version stamped in (`streampack-setup version`), and attaches them to a GitHub release with `SHA256SUMS`. Watch it at the repository's Actions page.
+CI then tests the tag, checks it against `VERSION`, builds static binaries for linux and darwin, amd64 and arm64, with the version stamped in (`streampack-setup --version`), and attaches them to a GitHub release with `SHA256SUMS`. Watch it at the repository's Actions page.
 
 The streampack docs link to `releases/latest/download/…`, so a new release is what they download from then on.
 
@@ -23,7 +23,7 @@ The streampack docs link to `releases/latest/download/…`, so a new release is 
 
 ```bash
 just build
-./streampack-setup version
+./streampack-setup --version
 ```
 
 `just build` stamps the binary with `VERSION` as it stands, `-SNAPSHOT` included.
