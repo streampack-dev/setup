@@ -32,7 +32,7 @@
 | `MAIL_USERNAME`, `MAIL_PASSWORD` | Asked if mail is on and a username is given | The password is hidden. `MAIL_AUTH` and `MAIL_STARTTLS` are set to `true` with them. |
 | Credentials from the console (`MATTERMOST_WORK_TOKEN`, …) | Asked by `secrets`, hidden | The names come from the server. |
 
-Every other server setting keeps the server's default. You can add any of them to `.env` yourself: see streampack's [Environment Variables](https://github.com/streampack-dev/streampack/blob/main/docs/reference/environment-variables.md). Then run `streampack-setup up`.
+Every other server setting keeps the server's default. You can add any of them to `.env` yourself: see streampack's [Environment Variables](https://github.com/streampack-dev/streampack/blob/main/docs/reference/environment-variables.md). Then run `./streampack-setup up`.
 
 ## How `.env` Is Written
 

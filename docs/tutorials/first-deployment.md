@@ -1,40 +1,35 @@
 # Your First Deployment
 
-In this tutorial you'll use `streampack-setup` to bring up a `server-streampack` with no integrations, sign in to its console, and take it down again. It takes about ten minutes, most of it spent pulling the images. Any machine with Docker will do: a Linux server, or a Mac with Docker Desktop.
+In this tutorial, you use `streampack-setup` to start a `server-streampack` with no integrations. You sign in to its console, and then you remove it. It takes about ten minutes. Most of that time is spent downloading the images.
 
 Afterwards, streampack's [Deploy with Docker for Mattermost and GitLab](https://github.com/streampack-dev/streampack/blob/main/docs/tutorials/deploy-with-docker-for-mattermost-and-gitlab.md) does the same on a server, and connects it to Mattermost and GitLab.
 
 ## What You Need
 
-- Docker with the Compose plugin, usable without `sudo`. On a Mac, Docker Desktop, running:
+- A Mac with Docker Desktop, or a Linux computer with Docker and the Compose plugin.
+- Port 8080 free on `127.0.0.1`. A development server-streampack (`just run` in streampack) also uses this port. Stop it before you start.
 
-  ```bash
-  docker compose version
-  ```
+## 1. Install the Tool
 
-- Port 8080 free on `127.0.0.1`. A development server-streampack (`just run` in streampack) uses it too, so stop that first.
-- The tool, from the [releases](https://github.com/streampack-dev/setup/releases) for your machine (`linux-amd64`, `linux-arm64`, `darwin-amd64` or `darwin-arm64`):
+1. Follow [Install the Tool](../how-to/install-the-tool.md). It makes the deployment directory, `~/streampack`, and puts the tool in it.
+2. Stay in that directory:
 
-  ```bash
-  curl -fLo ~/streampack-setup https://github.com/streampack-dev/setup/releases/latest/download/streampack-setup-linux-amd64
-  chmod +x ~/streampack-setup
-  ```
+   ```bash
+   cd ~/streampack
+   ```
 
-  On an Apple Silicon Mac, that's `streampack-setup-darwin-arm64`. Download it with `curl`, as here: a browser's download is quarantined, and macOS won't run the unsigned binary until you clear it with `xattr -d com.apple.quarantine ~/streampack-setup`.
+## 2. Answer the Questions
 
-## 1. Answer the Questions
-
-Make an empty directory and run the tool in it:
+Run the tool:
 
 ```bash
-mkdir ~/streampack-trial && cd ~/streampack-trial
-~/streampack-setup
+./streampack-setup
 ```
 
 Take the defaults by pressing Enter, except for your email address. Answer no to every integration:
 
 ```text
-Setting up a server-streampack deployment in /home/you/streampack-trial
+Setting up a server-streampack deployment in /home/you/streampack
 Server version [1.16.0]:
 The super-admin's email address: you@example.com
 The API's public address [http://localhost:8080]:
@@ -55,9 +50,9 @@ Look at what it wrote:
 ls -a
 ```
 
-`compose.yaml` is an ordinary Compose file. `.env` holds your answers and the secrets the tool generated. Don't print `.env` where anyone else can see it.
+The directory holds the tool, `compose.yaml`, `.env` and `generative/`. `compose.yaml` is an ordinary Compose file. `.env` holds your answers and the secrets the tool generated. Don't print `.env` where anyone else can see it.
 
-## 2. Watch It Start
+## 3. Watch It Start
 
 The tool carries on by itself:
 
@@ -71,7 +66,7 @@ Console open as you.
 
 The lines starting with `$` are the commands it ran. You could have typed them yourself.
 
-## 3. Use the Console
+## 4. Use the Console
 
 You're signed in as the super-admin. Nobody gave a password: the server wrote a short-lived token inside its container, and the tool read it from there.
 
@@ -88,17 +83,17 @@ That's the server answering, not the tool. Anything you type without a leading `
 > :help
 ```
 
-## 4. Leave, and Come Back
+## 5. Leave, and Come Back
 
-Leave with `:quit`. Then run the tool again in the same directory:
+Leave with `:quit`. Then run the tool again:
 
 ```bash
-~/streampack-setup
+./streampack-setup
 ```
 
 This time it asks nothing. `.env` is complete and the server is already up, so it goes straight to the console. Running it again is always safe: it skips what's done. Leave with `:quit` once more.
 
-## 5. Take It Down
+## 6. Take It Down
 
 This is a trial, so remove the containers, the database and the media volume:
 

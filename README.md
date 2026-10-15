@@ -6,43 +6,25 @@ It asks only what starting the server needs. Integrations (Mattermost, GitLab, I
 
 ## Needs
 
-- Docker with the Compose plugin (`docker compose version`), usable by you without `sudo`. On a Mac, Docker Desktop.
+- Docker with the Compose plugin. On a Mac, this is Docker Desktop.
 - A server-streampack release with streampack#209 (the local admin token and `GET /admin/secrets`).
 
 ## Install
 
-Download the binary for the machine from the [releases](https://github.com/streampack-dev/setup/releases), check it against `SHA256SUMS`, and make it executable.
+Follow [Install the Tool](docs/how-to/install-the-tool.md). It has one section for each kind of computer: Mac with Apple Silicon, Mac with Intel, Linux on x86-64 and Linux on ARM.
 
-On Linux (`linux-arm64` on an ARM box):
-
-```bash
-curl -fLO https://github.com/streampack-dev/setup/releases/latest/download/streampack-setup-linux-amd64
-curl -fLO https://github.com/streampack-dev/setup/releases/latest/download/SHA256SUMS
-sha256sum --check --ignore-missing SHA256SUMS
-sudo install -m 755 streampack-setup-linux-amd64 /usr/local/bin/streampack-setup
-```
-
-On a Mac (`darwin-amd64` on an Intel Mac):
-
-```bash
-curl -fLO https://github.com/streampack-dev/setup/releases/latest/download/streampack-setup-darwin-arm64
-curl -fLO https://github.com/streampack-dev/setup/releases/latest/download/SHA256SUMS
-shasum -a 256 --check --ignore-missing SHA256SUMS
-sudo install -m 755 streampack-setup-darwin-arm64 /usr/local/bin/streampack-setup
-```
-
-The binary isn't signed. Downloaded with `curl` it runs as it is; downloaded in a browser, macOS quarantines it and refuses to open it. Clear that with `xattr -d com.apple.quarantine streampack-setup-darwin-arm64`.
-
-Or build it with `just build` (Go 1.26).
+The tool lives in the deployment directory, with `.env` and `compose.yaml`.
 
 ## Use
 
+Run the tool from the deployment directory:
+
 ```bash
-mkdir ~/streampack && cd ~/streampack
-streampack-setup
+cd ~/streampack
+./streampack-setup
 ```
 
-The first run asks its questions and writes `.env` and `compose.yaml`, then starts the server and opens the console. Each later run skips what's done and goes to the console.
+The first run asks its questions and writes `.env` and `compose.yaml`. Then it starts the server and opens the console. Each later run skips the steps that are done, and opens the console.
 
 | Command | What it does |
 |---------|--------------|

@@ -23,7 +23,7 @@ At the `>` prompt:
 ## From the Shell
 
 ```bash
-streampack-setup secrets
+./streampack-setup secrets
 ```
 
 ## What Happens

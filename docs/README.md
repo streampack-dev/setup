@@ -9,6 +9,7 @@ Arranged by [Diátaxis](https://diataxis.fr/): tutorials to learn by doing, how-
 
 ## How-To Guides
 
+- [Install the Tool](how-to/install-the-tool.md): one section for each kind of computer
 - [Move Credentials into `.env`](how-to/move-credentials-into-env.md)
 - [Recover a Refused Start](how-to/recover-a-refused-start.md), including a lost `.env`
 - [Upgrade the Server](how-to/upgrade-the-server.md)
