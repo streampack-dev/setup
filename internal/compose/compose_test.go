@@ -16,10 +16,20 @@ func TestTheFileNamesWhatTheToolRelyOn(t *testing.T) {
 		"env_file: .env",
 		"${STREAMPACK_VERSION:?",
 		"${DB_PASSWORD:?",
+		"- ./media:/opt/streampack/media",
+		"- ./ext:/opt/streampack/ext:ro",
+		"- ./generative:/opt/streampack/generative:ro",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("compose.yaml lacks %q", want)
 		}
+	}
+}
+
+// Media is a directory on the host now, not a named volume (setup#9).
+func TestMediaIsNotANamedVolume(t *testing.T) {
+	if strings.Contains(string(File), "- media:/opt/streampack/media") || strings.Contains(string(File), "\n  media:") {
+		t.Error("compose.yaml still has the named media volume")
 	}
 }
 

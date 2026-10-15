@@ -17,8 +17,11 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
-      - media:/opt/streampack/media
+      # Posts' recordings, for the audio streams: files on the host, beside .env.
+      - ./media:/opt/streampack/media
       - ./generative:/opt/streampack/generative:ro
+      # Extension jars and extra classpath files, such as banner.txt (streampack#229).
+      - ./ext:/opt/streampack/ext:ro
     tmpfs:
       - /run/streampack:mode=0700
     # For the stdin console (CONSOLE_ENABLED=true); see "Use the Console in Docker".
@@ -42,4 +45,3 @@ services:
 
 volumes:
   pgdata:
-  media:

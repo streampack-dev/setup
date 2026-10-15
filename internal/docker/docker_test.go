@@ -14,3 +14,11 @@ func TestProjectNameIsNormalizedAsComposeDoes(t *testing.T) {
 		}
 	}
 }
+
+func TestPrintedCommandsQuoteWhatTheShellWouldSplit(t *testing.T) {
+	got := shellJoin([]string{"run", "--entrypoint", "sh", "img", "-c", "rm -rf /clear/*", "it's"})
+	want := `run --entrypoint sh img -c 'rm -rf /clear/*' 'it'\''s'`
+	if got != want {
+		t.Errorf("got  %s\nwant %s", got, want)
+	}
+}
