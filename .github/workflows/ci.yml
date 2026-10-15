@@ -33,6 +33,12 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      - name: Check the tag against VERSION
+        run: |
+          if [ "$(tr -d '[:space:]' < VERSION)" != "${GITHUB_REF_NAME#v}" ]; then
+            echo "Tag $GITHUB_REF_NAME doesn't match VERSION ($(cat VERSION)); release with just release." >&2
+            exit 1
+          fi
       - name: Build
         run: |
           version="${GITHUB_REF_NAME#v}"

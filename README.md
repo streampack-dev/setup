@@ -20,7 +20,7 @@ sha256sum --check --ignore-missing SHA256SUMS
 install -m 755 streampack-setup-linux-amd64 /usr/local/bin/streampack-setup
 ```
 
-Use `linux-arm64` on an ARM box, or `darwin-amd64` or `darwin-arm64` on a Mac. Or build it: `go build ./cmd/streampack-setup` (Go 1.26).
+Use `linux-arm64` on an ARM box, or `darwin-amd64` or `darwin-arm64` on a Mac. Or build it with `just build` (Go 1.26).
 
 ## Use
 
@@ -47,9 +47,8 @@ Start with [Your First Deployment](docs/tutorials/first-deployment.md). The [doc
 ## Development
 
 ```bash
-go test -race ./...
-go vet ./...
-gofmt -l .
+just test     # gofmt check, go vet, go test -race, as CI does
+just build    # ./streampack-setup, stamped with VERSION
 ```
 
 `internal/setup` holds the flows, and the packages beside it are what the flows use. Tests fake Docker, the server (`httptest`) and the person (a scripted `prompt.Asker`). Releasing: [Release the Tool](docs/how-to/release-the-tool.md).
