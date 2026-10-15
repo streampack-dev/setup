@@ -31,7 +31,7 @@ A hard reset uses these, also without reading `.env` or the compose file:
 
 ## HTTP
 
-All requests go to `-url` (by default `http://127.0.0.1:8080`). The admin endpoints carry `Authorization: Bearer <token>` with the local admin token. On a 401, the tool reads the token again and retries once.
+All requests go to `--url` (by default `http://127.0.0.1:8080`). The admin endpoints carry `Authorization: Bearer <token>` with the local admin token. On a 401, the tool reads the token again and retries once.
 
 | Request | Used by | For |
 |---------|---------|-----|

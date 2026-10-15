@@ -58,7 +58,7 @@ It's the file from streampack's [Run the Published Image with Docker Compose](ht
 |------|-----|
 | The service name `server-streampack` | `exec` and `logs` name it. |
 | `STREAMPACK_LOCAL_ADMIN_TOKEN_FILE: /run/streampack/admin-token`, on a `tmpfs` at `/run/streampack` | The console signs in with this token. |
-| `ports: "127.0.0.1:8080:8080"` | The default `-url`. If you change the port, pass `-url`. |
+| `ports: "127.0.0.1:8080:8080"` | The default `--url`. If you change the port, pass `--url`. |
 | `env_file: .env` | `secrets` writes credentials there. |
 | `./media`, `./ext` and `./generative` mounted at `/opt/streampack/…` | `init` makes the directories, and a hard reset knows which to keep. |
 

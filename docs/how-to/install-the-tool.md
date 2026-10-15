@@ -50,6 +50,14 @@ The tool lives in the deployment directory, with the files it writes. You run it
    rm SHA256SUMS
    ```
 
+5. Check the version. Run:
+
+   ```bash
+   ./streampack-setup --version
+   ```
+
+   The result is the name of the tool and its version, for example `streampack-setup 0.1.3`. The tool also writes this line first each time it runs.
+
 ## Mac with Intel (`x86_64`)
 
 1. Make the deployment directory, and go into it:
@@ -78,6 +86,14 @@ The tool lives in the deployment directory, with the files it writes. You run it
    chmod +x streampack-setup
    rm SHA256SUMS
    ```
+
+5. Check the version. Run:
+
+   ```bash
+   ./streampack-setup --version
+   ```
+
+   The result is the name of the tool and its version, for example `streampack-setup 0.1.3`. The tool also writes this line first each time it runs.
 
 ## Linux on x86-64 (`x86_64`)
 
@@ -108,6 +124,14 @@ The tool lives in the deployment directory, with the files it writes. You run it
    rm SHA256SUMS
    ```
 
+5. Check the version. Run:
+
+   ```bash
+   ./streampack-setup --version
+   ```
+
+   The result is the name of the tool and its version, for example `streampack-setup 0.1.3`. The tool also writes this line first each time it runs.
+
 ## Linux on ARM (`aarch64`)
 
 1. Make the deployment directory, and go into it:
@@ -136,6 +160,14 @@ The tool lives in the deployment directory, with the files it writes. You run it
    chmod +x streampack-setup
    rm SHA256SUMS
    ```
+
+5. Check the version. Run:
+
+   ```bash
+   ./streampack-setup --version
+   ```
+
+   The result is the name of the tool and its version, for example `streampack-setup 0.1.3`. The tool also writes this line first each time it runs.
 
 ## Next
 
