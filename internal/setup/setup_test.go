@@ -61,6 +61,9 @@ type fakeDocker struct {
 	token   string
 	onUp    func(n int)
 	lastLog string
+	// volume is the project's existing database volume, if any; removed records its removal
+	volume  string
+	removed []string
 }
 
 func (f *fakeDocker) Pull(context.Context) error { f.pulls++; return nil }
@@ -84,6 +87,17 @@ func (f *fakeDocker) Logs(context.Context, string, int) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.lastLog, nil
+}
+
+func (f *fakeDocker) Volume(_ context.Context, name string) (string, error) {
+	if name != "pgdata" {
+		return "", fmt.Errorf("unexpected volume %s", name)
+	}
+	return f.volume, nil
+}
+func (f *fakeDocker) RemoveVolume(_ context.Context, volume string) error {
+	f.removed = append(f.removed, volume)
+	return nil
 }
 
 // lockedBuffer is output written by the console's stream and read by the test at once.
@@ -187,6 +201,113 @@ func TestInitKeepsWhatTheEnvAlreadyHas(t *testing.T) {
 		if strings.Contains(q, "version") || strings.Contains(q, "email") {
 			t.Errorf("asked %q again", q)
 		}
+	}
+}
+
+// The .env that held the database's password is gone, but the database isn't (#4).
+func TestInitAsksForAnExistingDatabasesPassword(t *testing.T) {
+	docker := &fakeDocker{volume: "q_pgdata"}
+	s, ask, out := newSetup(t, []string{
+		"old-password",                 // the existing database's password
+		"", "root@example.com", "", "", // version, admin, addresses
+		"", "", "", "", "", "", // integrations, mail
+	}, docker, "")
+
+	if err := s.Init(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	env, _ := envfile.Read(filepath.Join(s.Dir, ".env"))
+	if v, _ := env.Get("DB_PASSWORD"); v != "old-password" {
+		t.Errorf("DB_PASSWORD %q", v)
+	}
+	if !strings.Contains(out.String(), "q_pgdata") || !strings.Contains(ask.asked[0], "password") {
+		t.Errorf("didn't explain: %q\n%s", ask.asked[0], out)
+	}
+	if len(docker.removed) != 0 {
+		t.Errorf("removed %v", docker.removed)
+	}
+}
+
+func TestInitStartsTheDatabaseAfreshWhenAsked(t *testing.T) {
+	docker := &fakeDocker{volume: "q_pgdata"}
+	s, _, out := newSetup(t, []string{
+		"",  // no password
+		"y", // delete it
+		"", "root@example.com", "", "",
+		"", "", "", "", "", "",
+	}, docker, "")
+
+	if err := s.Init(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if strings.Join(docker.removed, ",") != "q_pgdata" {
+		t.Errorf("removed %v", docker.removed)
+	}
+	env, _ := envfile.Read(filepath.Join(s.Dir, ".env"))
+	if v, _ := env.Get("DB_PASSWORD"); v == "" {
+		t.Error("no DB_PASSWORD generated")
+	}
+}
+
+func TestInitStopsWhenTheDatabaseIsKeptWithoutItsPassword(t *testing.T) {
+	docker := &fakeDocker{volume: "q_pgdata"}
+	s, ask, _ := newSetup(t, []string{"", ""}, docker, "") // no password; keep it (the default)
+
+	err := s.Init(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "DB_PASSWORD") {
+		t.Fatalf("got %v", err)
+	}
+	if len(docker.removed) != 0 {
+		t.Errorf("removed %v", docker.removed)
+	}
+	if _, statErr := os.Stat(filepath.Join(s.Dir, ".env")); statErr == nil {
+		t.Error(".env written")
+	}
+	if len(ask.asked) != 2 {
+		t.Errorf("asked %v", ask.asked)
+	}
+}
+
+func TestInitWithAPasswordAlreadyInTheEnvDoesntLookForTheVolume(t *testing.T) {
+	docker := &fakeDocker{volume: "q_pgdata"}
+	s, _, _ := newSetup(t, []string{"", "", "", "", "", "", "", ""}, docker, "")
+	os.WriteFile(filepath.Join(s.Dir, ".env"), []byte("STREAMPACK_VERSION=1.15.7\nADMIN_EMAIL=me@example.com\nDB_PASSWORD=kept\n"), 0o600)
+
+	if err := s.Init(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	env, _ := envfile.Read(filepath.Join(s.Dir, ".env"))
+	if v, _ := env.Get("DB_PASSWORD"); v != "kept" {
+		t.Errorf("DB_PASSWORD %q", v)
+	}
+}
+
+func TestStartupStoppedRecognizesTheWrongDatabasePassword(t *testing.T) {
+	log := "Unable to obtain connection from database: FATAL: password authentication failed for user \"streampack\"\nSQL State  : 28P01\n"
+	stopped := startupStopped(log)
+	if stopped == nil || !stopped.WrongDatabasePassword || len(stopped.Variables) != 0 {
+		t.Fatalf("got %+v", stopped)
+	}
+	if !strings.Contains(stopped.Error(), "DB_PASSWORD") || !strings.Contains(stopped.Error(), "down -v") {
+		t.Errorf("doesn't explain: %s", stopped.Error())
+	}
+}
+
+func TestUpStopsWaitingOnTheWrongDatabasePassword(t *testing.T) {
+	fake := &fakeServer{}
+	srv := httptest.NewServer(fake.handler(t))
+	defer srv.Close()
+	docker := &fakeDocker{lastLog: "FATAL: password authentication failed for user \"streampack\"\nSQL State  : 28P01"}
+	s, _, _ := newSetup(t, nil, docker, srv.URL)
+	s.ReadyTimeout = 10 * time.Second
+
+	started := time.Now()
+	err := s.Up(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "DB_PASSWORD") {
+		t.Fatalf("got %v", err)
+	}
+	if time.Since(started) > 5*time.Second || docker.ups != 1 {
+		t.Errorf("waited %s, %d ups", time.Since(started), docker.ups)
 	}
 }
 

@@ -7,7 +7,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -22,6 +24,11 @@ type Compose interface {
 	Exec(ctx context.Context, service string, args ...string) (string, error)
 	// Logs returns service's last lines of log.
 	Logs(ctx context.Context, service string, lines int) (string, error)
+	// Volume returns the full name of the project's volume called name, or "" when there's none.
+	// It works without .env, before the compose file can be read.
+	Volume(ctx context.Context, name string) (string, error)
+	// RemoveVolume removes the project's containers, which hold the volume, and then the volume.
+	RemoveVolume(ctx context.Context, volume string) error
 }
 
 // CLI is Compose by the docker command, in Dir; progress goes to Out.
@@ -39,6 +46,64 @@ func (c CLI) Exec(ctx context.Context, service string, args ...string) (string, 
 
 func (c CLI) Logs(ctx context.Context, service string, lines int) (string, error) {
 	return c.output(ctx, "logs", "--no-color", "--tail", strconv.Itoa(lines), service)
+}
+
+// Project is the Compose project name for Dir: COMPOSE_PROJECT_NAME when it's set, otherwise the
+// directory's name as Compose normalizes it (lower case; letters, digits, '-' and '_').
+func (c CLI) Project() string {
+	if name := os.Getenv("COMPOSE_PROJECT_NAME"); name != "" {
+		return name
+	}
+	return ProjectName(filepath.Base(c.Dir))
+}
+
+// ProjectName normalizes a directory's name as Compose does for a project name.
+func ProjectName(dir string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(dir) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			b.WriteRune(r)
+		}
+	}
+	return strings.TrimLeft(b.String(), "-_")
+}
+
+func (c CLI) Volume(ctx context.Context, name string) (string, error) {
+	out, err := c.docker(ctx, "volume", "ls", "-q",
+		"--filter", "label=com.docker.compose.project="+c.Project(),
+		"--filter", "label=com.docker.compose.volume="+name)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(strings.SplitN(out, "\n", 2)[0]), nil
+}
+
+func (c CLI) RemoveVolume(ctx context.Context, volume string) error {
+	containers, err := c.docker(ctx, "ps", "-aq", "--filter", "label=com.docker.compose.project="+c.Project())
+	if err != nil {
+		return err
+	}
+	if ids := strings.Fields(containers); len(ids) > 0 {
+		fmt.Fprintf(c.Out, "$ docker rm -f %s\n", strings.Join(ids, " "))
+		if _, err := c.docker(ctx, append([]string{"rm", "-f"}, ids...)...); err != nil {
+			return err
+		}
+	}
+	fmt.Fprintf(c.Out, "$ docker volume rm %s\n", volume)
+	_, err = c.docker(ctx, "volume", "rm", volume)
+	return err
+}
+
+// docker runs a plain docker command (not compose) and returns its output. It needs no working
+// directory, so it runs before init has made Dir.
+func (c CLI) docker(ctx context.Context, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	var out, errOut bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errOut
+	if err := cmd.Run(); err != nil {
+		return out.String(), fmt.Errorf("docker %s: %w: %s", strings.Join(args[:2], " "), err, strings.TrimSpace(errOut.String()))
+	}
+	return out.String(), nil
 }
 
 func (c CLI) run(ctx context.Context, args ...string) error {
