@@ -7,7 +7,7 @@ With `-hard-reset`, a step comes before all of these: the tool deletes the deplo
 ```mermaid
 flowchart TD
     start([streampack-setup]) --> reset{"-hard-reset?"}
-    reset -- "yes, and you type the<br>directory's name" --> wipe[delete containers, volumes, networks,<br>.env, compose files, generative/] --> configured
+    reset -- "yes, and you type the<br>directory's name" --> wipe[delete containers, volumes, networks,<br>.env, compose files, media/;<br>keep generative/ and ext/] --> configured
     reset -- "yes, any other answer" --> stopped([stop; nothing deleted])
     reset -- no --> configured{".env has STREAMPACK_VERSION,<br>DB_PASSWORD and JWT_SECRET?"}
     configured -- no --> volume{"no DB_PASSWORD, but the<br>database volume exists?"}
@@ -37,11 +37,13 @@ flowchart TD
 0. **An existing database.** If `.env` has no `DB_PASSWORD` but the deployment's database volume exists (a `.env` lost after an earlier run), `init` asks for that database's password, or offers to delete the volume. A generated password would never open it: Postgres keeps the one it was first given. See [After Losing `.env`](../how-to/recover-a-refused-start.md#after-losing-env).
 
 1. **The server version.** It suggests the newest tag in the image registry. If the registry can't be reached, it says so and asks with no default.
-2. **The super-admin's email address, the API's public address and the site's public address.** Each is checked: an email address, and addresses that start with `http://` or `https://`.
-3. **Generated values:** the database password, the JWT secret and GitHub's webhook key. They're random, made on this box, and never shown.
-4. **Which integrations to turn on.** Mattermost and GitLab default to yes, IRC, Slack and Discord to no. GitLab gets a generated webhook key. Discord's three values are asked for straight away, because the server needs them before it starts. The others need nothing yet.
-5. **Mail.** If you want it: the SMTP host, port, sender, and optionally a username and password.
-6. **The files.** It writes `compose.yaml` if there isn't one, and never overwrites one that's there. It makes the `generative/` directory, and writes `.env` with mode 600.
+2. **The system's name** (`STREAMPACK_NAME`), default `nevet`.
+3. **The super-admin's email address, the API's public address and the site's public address.** Each is checked: an email address, and addresses that start with `http://` or `https://`.
+4. **The site's name and its feed.** The site's name (`BLOG_SITE_NAME`) defaults to the system's name, the feed's title (`BLOG_FEED_TITLE`) to the site's name, and the feed's description (`BLOG_FEED_DESCRIPTION`) to the server's own.
+5. **Generated values:** the database password, the JWT secret and GitHub's webhook key. They're random, made on this box, and never shown.
+6. **Which integrations to turn on.** Mattermost and GitLab default to yes, IRC, Slack and Discord to no. GitLab gets a generated webhook key. Discord's three values are asked for straight away, because the server needs them before it starts. The others need nothing yet.
+7. **Mail.** If you want it: the SMTP host, port, sender, and optionally a username and password.
+8. **The files.** It writes `compose.yaml` if there isn't one, and never overwrites one that's there. It makes `generative/`, `ext/` and `media/`, and writes `.env` with mode 600.
 
 Nothing is sent anywhere during `init`, except the registry lookup for the version.
 
@@ -49,7 +51,7 @@ Nothing is sent anywhere during `init`, except the registry lookup for the versi
 
 1. `docker compose pull`, then `docker compose up -d`.
 2. It polls `GET /features` every 2 seconds until the server answers. Between polls it reads the last 300 lines of the server's log, looking for a start that was refused.
-3. **A refused start.** The server's secrets check refuses to start when a credential stored in the database has no environment variable, and its log names those variables. `up` shows that part of the log, asks for each variable (hidden), writes the answers into `.env`, and starts the server again, at most three times in all. A database that refuses `DB_PASSWORD` stops `up` with an explanation of both ways out. Any other startup failure, or no answer within 5 minutes, stops `up` with the log's explanation.
+3. **A refused start.** The server's secrets check refuses to start when a credential stored in the database has no environment variable, and its log names those variables. `up` shows that part of the log, asks for each variable (hidden), writes the answers into `.env`, and starts the server again, at most three times in all. A database that refuses `DB_PASSWORD`, or an `application.yml` at the top of `ext/`, stops `up` with an explanation. Any other startup failure, or no answer within 5 minutes, stops `up` with the log's explanation.
 
 ## `console`
 

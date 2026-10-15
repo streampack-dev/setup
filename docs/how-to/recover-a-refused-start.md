@@ -67,6 +67,15 @@ Back up `.env` along with the database.
 
 If the deployment is too broken to repair, delete it and start again. See [Start Over](start-over.md).
 
+## An `application.yml` in `ext/`
+
+```text
+streampack-setup: the server didn't start:
+ext/application.yml would replace the server's own configuration, …
+```
+
+A configuration file at the top of `ext/` would replace all of the server's settings, so the server refuses to start with it. Move it to `ext/config/application.yml`, where it adds to the settings instead. Or put the settings in `.env`. Then run `./streampack-setup up`.
+
 ## Other Failures
 
 For any other startup failure (`APPLICATION FAILED TO START` in the log), `up` stops and shows that part of the log. Fix what it describes, usually a setting in `.env`, and run `./streampack-setup up` again. The whole log:

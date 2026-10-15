@@ -31,9 +31,13 @@ Take the defaults by pressing Enter, except for your email address. Answer no to
 ```text
 Setting up a server-streampack deployment in /home/you/streampack
 Server version [1.16.0]:
+The system's name [nevet]:
 The super-admin's email address: you@example.com
 The API's public address [http://localhost:8080]:
 The site's public address [http://localhost:3000]:
+The site's name [nevet]:
+The feed's title [nevet]:
+The feed's description [JVM ecosystem news and community content]:
 Turn on Mattermost? [Y/n]: n
 Turn on GitLab? [Y/n]: n
 Turn on IRC? [y/N]:
@@ -50,7 +54,7 @@ Look at what it wrote:
 ls -a
 ```
 
-The directory holds the tool, `compose.yaml`, `.env` and `generative/`. `compose.yaml` is an ordinary Compose file. `.env` holds your answers and the secrets the tool generated. Don't print `.env` where anyone else can see it.
+The directory holds the tool, `compose.yaml`, `.env`, and three directories the server reads: `generative/` for prompt and mail templates, `ext/` for extensions, and `media/` for recordings. `compose.yaml` is an ordinary Compose file. `.env` holds your answers and the secrets the tool generated. Don't print `.env` where anyone else can see it.
 
 ## 3. Watch It Start
 

@@ -8,9 +8,9 @@ streampack-setup [-dir DIR] [-url URL] [-hard-reset] [command]
 
 | Flag | Default | Meaning |
 |------|---------|---------|
-| `-dir` | `.` | The deployment directory, holding `.env`, `compose.yaml` and `generative/`. Every `docker compose` command runs here. |
+| `-dir` | `.` | The deployment directory, holding `.env`, `compose.yaml`, `generative/`, `ext/` and `media/`. Every `docker compose` command runs here. |
 | `-url` | `http://127.0.0.1:8080` | Where the server answers from this box. The compose file publishes the API on `127.0.0.1:8080`. |
-| `-hard-reset` | off | First delete the deployment: its containers, volumes and networks, `.env`, the compose file and any override, and `generative/`. You confirm by typing the directory's name. Then run as a first run. Goes with no command, or with `init`; with any other command it exits with status 2. See [Start Over](../how-to/start-over.md). |
+| `-hard-reset` | off | First delete the deployment: its containers, volumes and networks, `.env`, the compose file and any override, and `media/`. It keeps `generative/` and `ext/`. You confirm by typing the directory's name. Then run as a first run. Goes with no command, or with `init`; with any other command it exits with status 2. See [Start Over](../how-to/start-over.md). |
 
 Flags go before the command.
 
@@ -19,7 +19,7 @@ Flags go before the command.
 | Command | What it does | Ends |
 |---------|--------------|------|
 | (none) | `init` if `.env` lacks `STREAMPACK_VERSION`, `DB_PASSWORD` or `JWT_SECRET`; then `up`; then `console`. | When the console is left, or at the first step that fails. |
-| `init` | Asks for what `.env` lacks and writes `.env`, `compose.yaml` (if there is no compose file) and `generative/`. See [The Deployment Directory](deployment-directory.md). | After writing. |
+| `init` | Asks for what `.env` lacks and writes `.env` and `compose.yaml` (if there is no compose file), and makes `generative/`, `ext/` and `media/`. See [The Deployment Directory](deployment-directory.md). | After writing. |
 | `up` | `docker compose pull`, `docker compose up -d`, then waits for `GET /features`. A start refused by the secrets check is offered the variables it names, for up to three starts. | Once the server answers. It fails on any other startup failure, or after 5 minutes. |
 | `console` | Opens the server's console as the super-admin. | On `:quit`, `:exit` or Ctrl-D, after offering to move waiting credentials. |
 | `secrets` | Asks for the variables `GET /admin/secrets` names, writes them into `.env`, recreates the server, and checks again. | After the check. |

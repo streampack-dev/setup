@@ -10,12 +10,18 @@ A hard reset deletes the database. Make a backup first if you need any of the da
 
 ## What It Deletes
 
-- The deployment's containers, volumes and networks. The volumes hold the database and the uploaded media.
+- The deployment's containers, volumes and networks. The database is in a volume.
 - `.env`.
 - The compose file, under any name Compose reads (`compose.yaml`, `docker-compose.yml` and the others), and any override file (`compose.override.yaml` and the others).
-- `generative/`, with your prompt overrides.
+- `media/`, with the posts' recordings. Only the database refers to them, and it's deleted too.
 
-It keeps the tool, and any other file in the directory.
+## What It Keeps
+
+- `generative/`, with your prompt and mail templates.
+- `ext/`, with your extension jars, banner and settings.
+- The tool, and any other file in the directory.
+
+On Linux, the recordings in `media/` belong to the container's root user. The reset deletes them from inside a container of the server's image, so you don't need `sudo`. If the server's container is already gone, the reset deletes `media/` directly. If that's refused, it stops and tells you to run `sudo rm -rf media`.
 
 It finds the containers, volumes and networks by the Compose project's label. It doesn't read `.env` or the compose file, so it works when they're damaged.
 
@@ -40,7 +46,8 @@ It finds the containers, volumes and networks by the Compose project's label. It
      Containers: streampack-server-streampack-1, streampack-db-1
      Volumes: streampack_media, streampack_pgdata
      Networks: streampack_default
-     Files in /home/you/streampack: .env, compose.yaml, generative/
+     Files in /home/you/streampack: .env, compose.yaml, media/
+   Kept: ext/, generative/ (your templates and extensions)
    Type "streampack" to delete all of this:
    ```
 
