@@ -13,7 +13,7 @@ The server's version is `STREAMPACK_VERSION` in `.env`. The tool never changes i
 4. Pull it and start it:
 
    ```bash
-   streampack-setup up
+   ./streampack-setup up
    ```
 
 The server applies its database migrations as it starts, and `up` waits for it.

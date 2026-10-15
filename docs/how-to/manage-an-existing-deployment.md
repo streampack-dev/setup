@@ -19,22 +19,24 @@ The tool can take over a deployment that was set up by hand, for example from st
 
 ## Steps
 
-Run `init` against the directory. It asks only for what `.env` lacks (`STREAMPACK_VERSION`, say, if your compose file names the tag directly), and it leaves your compose file alone:
+1. Put the tool in the deployment directory. Follow [Install the Tool](install-the-tool.md), but use your deployment's directory, not `~/streampack`.
+2. Go into the deployment directory.
+3. Run `init`. It asks only for what `.env` lacks (`STREAMPACK_VERSION`, say, if your compose file names the tag directly), and it leaves your compose file alone:
 
 ```bash
-streampack-setup -dir /srv/streampack init
+./streampack-setup init
 ```
 
 Then use it as usual:
 
 ```bash
-streampack-setup -dir /srv/streampack
+./streampack-setup
 ```
 
 If the API isn't published on `127.0.0.1:8080`, tell the tool where it is:
 
 ```bash
-streampack-setup -dir /srv/streampack -url http://127.0.0.1:9000
+./streampack-setup -url http://127.0.0.1:9000
 ```
 
 `init` adds the keys it generates when they're missing, `DB_PASSWORD` among them. If your database already has a password that isn't in `.env`, add it to `.env` before running `init`. Otherwise `init` generates a new one, which won't match the existing database.
