@@ -2,9 +2,14 @@
 
 `streampack-setup` with no command does three things in order: `init` if the directory isn't configured yet, then `up`, then `console`. Each is also a command of its own, and every run can be repeated: a step that's already done is skipped.
 
+With `-hard-reset`, a step comes before all of these: the tool deletes the deployment, after you confirm, so the run that follows is a first run. See [Start Over](../how-to/start-over.md).
+
 ```mermaid
 flowchart TD
-    start([streampack-setup]) --> configured{".env has STREAMPACK_VERSION,<br>DB_PASSWORD and JWT_SECRET?"}
+    start([streampack-setup]) --> reset{"-hard-reset?"}
+    reset -- "yes, and you type the<br>directory's name" --> wipe[delete containers, volumes, networks,<br>.env, compose files, generative/] --> configured
+    reset -- "yes, any other answer" --> stopped([stop; nothing deleted])
+    reset -- no --> configured{".env has STREAMPACK_VERSION,<br>DB_PASSWORD and JWT_SECRET?"}
     configured -- no --> volume{"no DB_PASSWORD, but the<br>database volume exists?"}
     volume -- "no" --> init[init: ask, generate, write .env and compose.yaml]
     volume -- "yes" --> old["ask for its password,<br>or delete the volume"] --> init

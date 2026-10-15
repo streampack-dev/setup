@@ -27,6 +27,8 @@ const usage = `streampack-setup brings up a server-streampack with Docker Compos
 
 Usage: streampack-setup [flags] [command]
 
+With -hard-reset, it deletes the deployment first, after you confirm, and then runs as a first run.
+
 Commands:
   (none)    init if there's no .env yet, then up, then console
   init      ask what starting the server needs; write .env and compose.yaml
@@ -42,6 +44,7 @@ func main() {
 	flags := flag.NewFlagSet("streampack-setup", flag.ExitOnError)
 	dir := flags.String("dir", ".", "the deployment directory, where .env and compose.yaml are")
 	url := flags.String("url", "http://127.0.0.1:8080", "the server's address from this box")
+	hardReset := flags.Bool("hard-reset", false, "first delete the deployment (containers, volumes, .env, the compose file, generative/) and start from nothing")
 	flags.Usage = func() {
 		fmt.Fprint(os.Stderr, usage)
 		flags.PrintDefaults()
@@ -73,6 +76,15 @@ func main() {
 		},
 	}
 	s.Server = &server.Client{BaseURL: *url, HTTP: httpClient, Token: s.Token}
+
+	if *hardReset {
+		// What follows a reset is a first run: everything else needs the deployment it deleted.
+		if command != "" && command != "init" {
+			fmt.Fprintln(os.Stderr, "streampack-setup: -hard-reset goes with no command, or with init")
+			os.Exit(2)
+		}
+		check(s.HardReset(ctx))
+	}
 
 	switch command {
 	case "":

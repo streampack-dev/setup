@@ -13,6 +13,7 @@ Arranged by [Diátaxis](https://diataxis.fr/): tutorials to learn by doing, how-
 - [Move Credentials into `.env`](how-to/move-credentials-into-env.md)
 - [Recover a Refused Start](how-to/recover-a-refused-start.md), including a lost `.env`
 - [Upgrade the Server](how-to/upgrade-the-server.md)
+- [Start Over](how-to/start-over.md): delete a broken deployment and set it up again
 - [Manage an Existing Deployment](how-to/manage-an-existing-deployment.md)
 - [Release the Tool](how-to/release-the-tool.md) (maintainers)
 

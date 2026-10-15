@@ -20,6 +20,13 @@ Two plain `docker` commands are used too, without the deployment directory, sinc
 | `docker volume ls -q --filter label=com.docker.compose.project=<project> --filter label=com.docker.compose.volume=pgdata` | `init`, when `.env` has no `DB_PASSWORD` | no |
 | `docker rm -f <the project's containers>`, then `docker volume rm <volume>` | `init`, when you agree to start the database afresh | yes |
 
+A hard reset uses these, also without reading `.env` or the compose file:
+
+| Command | Printed |
+|---------|---------|
+| `docker ps -a`, `docker volume ls` and `docker network ls`, each with `--filter label=com.docker.compose.project=<project>` | no |
+| `docker rm -f <containers>`, `docker volume rm <volumes>`, `docker network rm <networks>` | yes |
+
 `<project>` is the Compose project name: `COMPOSE_PROJECT_NAME` if it's set in the environment, otherwise the directory's name, lower-cased, keeping only letters, digits, `-` and `_`.
 
 ## HTTP

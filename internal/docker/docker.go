@@ -29,6 +29,21 @@ type Compose interface {
 	Volume(ctx context.Context, name string) (string, error)
 	// RemoveVolume removes the project's containers, which hold the volume, and then the volume.
 	RemoveVolume(ctx context.Context, volume string) error
+	// Resources lists what the project has in Docker, found by its label, so it works however
+	// broken .env and the compose file are.
+	Resources(ctx context.Context) (Resources, error)
+	// RemoveResources removes them: containers, then volumes and networks.
+	RemoveResources(ctx context.Context, r Resources) error
+}
+
+// Resources are a project's containers, volumes and networks, by name.
+type Resources struct {
+	Containers, Volumes, Networks []string
+}
+
+// Empty says whether there's nothing.
+func (r Resources) Empty() bool {
+	return len(r.Containers)+len(r.Volumes)+len(r.Networks) == 0
 }
 
 // CLI is Compose by the docker command, in Dir; progress goes to Out.
@@ -92,6 +107,47 @@ func (c CLI) RemoveVolume(ctx context.Context, volume string) error {
 	fmt.Fprintf(c.Out, "$ docker volume rm %s\n", volume)
 	_, err = c.docker(ctx, "volume", "rm", volume)
 	return err
+}
+
+func (c CLI) Resources(ctx context.Context) (Resources, error) {
+	label := "label=com.docker.compose.project=" + c.Project()
+	var r Resources
+	for _, list := range []struct {
+		into *[]string
+		args []string
+	}{
+		{&r.Containers, []string{"ps", "-a", "--filter", label, "--format", "{{.Names}}"}},
+		{&r.Volumes, []string{"volume", "ls", "--filter", label, "--format", "{{.Name}}"}},
+		{&r.Networks, []string{"network", "ls", "--filter", label, "--format", "{{.Name}}"}},
+	} {
+		out, err := c.docker(ctx, list.args...)
+		if err != nil {
+			return Resources{}, err
+		}
+		*list.into = strings.Fields(out)
+	}
+	return r, nil
+}
+
+func (c CLI) RemoveResources(ctx context.Context, r Resources) error {
+	for _, step := range []struct {
+		args  []string
+		names []string
+	}{
+		{[]string{"rm", "-f"}, r.Containers},
+		{[]string{"volume", "rm"}, r.Volumes},
+		{[]string{"network", "rm"}, r.Networks},
+	} {
+		if len(step.names) == 0 {
+			continue
+		}
+		args := append(append([]string{}, step.args...), step.names...)
+		fmt.Fprintf(c.Out, "$ docker %s\n", strings.Join(args, " "))
+		if _, err := c.docker(ctx, args...); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // docker runs a plain docker command (not compose) and returns its output. It needs no working
