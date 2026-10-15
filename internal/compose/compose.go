@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"path/filepath"
 )
 
 //go:embed compose.yaml
@@ -18,12 +19,18 @@ const Service = "server-streampack"
 // TokenPath is where, inside the server's container, the local admin token is written.
 const TokenPath = "/run/streampack/admin-token"
 
-// Write puts File at path unless something is there already; it says whether it wrote.
-func Write(path string) (bool, error) {
-	if _, err := os.Stat(path); err == nil {
-		return false, nil
-	} else if !errors.Is(err, fs.ErrNotExist) {
-		return false, err
+// Names are the file names Compose looks for, in its order of preference.
+var Names = []string{"compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"}
+
+// Write puts File in dir as compose.yaml unless dir has a compose file by any of Names already; it
+// says whether it wrote.
+func Write(dir string) (bool, error) {
+	for _, name := range Names {
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			return false, nil
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return false, err
+		}
 	}
-	return true, os.WriteFile(path, File, 0o644)
+	return true, os.WriteFile(filepath.Join(dir, Names[0]), File, 0o644)
 }

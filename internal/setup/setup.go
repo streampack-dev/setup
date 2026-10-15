@@ -188,7 +188,7 @@ func (s *Setup) Init(ctx context.Context) error {
 	if err := os.MkdirAll(filepath.Join(s.Dir, "generative"), 0o755); err != nil {
 		return err
 	}
-	if wrote, err := compose.Write(filepath.Join(s.Dir, "compose.yaml")); err != nil {
+	if wrote, err := compose.Write(s.Dir); err != nil {
 		return err
 	} else if wrote {
 		fmt.Fprintln(s.Out, "Wrote compose.yaml")
