@@ -68,6 +68,8 @@ type fakeDocker struct {
 	// resources is what the project has in Docker; removedResources what a hard reset removed
 	resources        docker.Resources
 	removedResources []docker.Resources
+	// cleared records "image dir" for each directory cleared from inside a container
+	cleared []string
 }
 
 func (f *fakeDocker) Pull(context.Context) error { f.pulls++; return nil }
@@ -105,6 +107,14 @@ func (f *fakeDocker) RemoveVolume(_ context.Context, volume string) error {
 }
 
 func (f *fakeDocker) Resources(context.Context) (docker.Resources, error) { return f.resources, nil }
+func (f *fakeDocker) ClearDirectory(_ context.Context, image, dir string) error {
+	f.cleared = append(f.cleared, image+" "+dir)
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		os.RemoveAll(filepath.Join(dir, e.Name()))
+	}
+	return nil
+}
 func (f *fakeDocker) RemoveResources(_ context.Context, r docker.Resources) error {
 	f.removedResources = append(f.removedResources, r)
 	return nil
@@ -148,10 +158,14 @@ func newSetup(t *testing.T, answers []string, docker *fakeDocker, url string) (*
 func TestInitAsksWhatStartingNeedsAndWritesTheFiles(t *testing.T) {
 	s, _, _ := newSetup(t, []string{
 		"",                    // version: the newest release
+		"gholem",              // the system's name
 		"not an address",      // refused
 		"root@example.com",    // admin
 		"",                    // API address, default
 		"https://example.com", // site address
+		"Gholem",              // the site's name
+		"",                    // feed title: the site's name
+		"News for the team",   // feed description
 		"",                    // Mattermost: yes by default
 		"",                    // GitLab: yes by default
 		"",                    // IRC: no
@@ -165,16 +179,20 @@ func TestInitAsksWhatStartingNeedsAndWritesTheFiles(t *testing.T) {
 	}
 	env, _ := envfile.Read(filepath.Join(s.Dir, ".env"))
 	for key, want := range map[string]string{
-		"STREAMPACK_VERSION": "1.16.0",
-		"ADMIN_EMAIL":        "root@example.com",
-		"BASE_URL":           "http://localhost:8080",
-		"BLOG_BASE_URL":      "https://example.com",
-		"MATTERMOST_ENABLED": "true",
-		"GITLAB_ENABLED":     "true",
-		"IRC_ENABLED":        "false",
-		"SLACK_ENABLED":      "true",
-		"DISCORD_ENABLED":    "false",
-		"MAIL_ENABLED":       "false",
+		"STREAMPACK_VERSION":    "1.16.0",
+		"ADMIN_EMAIL":           "root@example.com",
+		"BASE_URL":              "http://localhost:8080",
+		"BLOG_BASE_URL":         "https://example.com",
+		"MATTERMOST_ENABLED":    "true",
+		"GITLAB_ENABLED":        "true",
+		"IRC_ENABLED":           "false",
+		"SLACK_ENABLED":         "true",
+		"DISCORD_ENABLED":       "false",
+		"MAIL_ENABLED":          "false",
+		"STREAMPACK_NAME":       "gholem",
+		"BLOG_SITE_NAME":        "Gholem",
+		"BLOG_FEED_TITLE":       "Gholem",
+		"BLOG_FEED_DESCRIPTION": "News for the team",
 	} {
 		if got, _ := env.Get(key); got != want {
 			t.Errorf("%s = %q, want %q", key, got, want)
@@ -185,8 +203,10 @@ func TestInitAsksWhatStartingNeedsAndWritesTheFiles(t *testing.T) {
 			t.Errorf("%s = %q, want a generated value", key, got)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(s.Dir, "compose.yaml")); err != nil {
-		t.Error("no compose.yaml")
+	for _, name := range []string{"compose.yaml", "generative", "ext", "media"} {
+		if _, err := os.Stat(filepath.Join(s.Dir, name)); err != nil {
+			t.Errorf("no %s", name)
+		}
 	}
 	if configured, _ := s.Configured(); !configured {
 		t.Error("not configured after init")
@@ -194,7 +214,7 @@ func TestInitAsksWhatStartingNeedsAndWritesTheFiles(t *testing.T) {
 }
 
 func TestInitKeepsWhatTheEnvAlreadyHas(t *testing.T) {
-	s, ask, _ := newSetup(t, []string{"", "", "", "", "", "", "", ""}, &fakeDocker{}, "")
+	s, ask, _ := newSetup(t, blanks(16), &fakeDocker{}, "")
 	os.WriteFile(filepath.Join(s.Dir, ".env"), []byte("STREAMPACK_VERSION=1.15.7\nADMIN_EMAIL=me@example.com\nJWT_SECRET=kept\n"), 0o600)
 
 	if err := s.Init(context.Background()); err != nil {
@@ -218,8 +238,9 @@ func TestInitKeepsWhatTheEnvAlreadyHas(t *testing.T) {
 func TestInitAsksForAnExistingDatabasesPassword(t *testing.T) {
 	docker := &fakeDocker{volume: "q_pgdata"}
 	s, ask, out := newSetup(t, []string{
-		"old-password",                 // the existing database's password
-		"", "root@example.com", "", "", // version, admin, addresses
+		"old-password",                     // the existing database's password
+		"", "", "root@example.com", "", "", // version, name, admin, addresses
+		"", "", "", // site name, feed title and description
 		"", "", "", "", "", "", // integrations, mail
 	}, docker, "")
 
@@ -243,7 +264,7 @@ func TestInitStartsTheDatabaseAfreshWhenAsked(t *testing.T) {
 	s, _, out := newSetup(t, []string{
 		"",  // no password
 		"y", // delete it
-		"", "root@example.com", "", "",
+		"", "", "root@example.com", "", "", "", "", "",
 		"", "", "", "", "", "",
 	}, docker, "")
 
@@ -280,7 +301,7 @@ func TestInitStopsWhenTheDatabaseIsKeptWithoutItsPassword(t *testing.T) {
 
 func TestInitWithAPasswordAlreadyInTheEnvDoesntLookForTheVolume(t *testing.T) {
 	docker := &fakeDocker{volume: "q_pgdata"}
-	s, _, _ := newSetup(t, []string{"", "", "", "", "", "", "", ""}, docker, "")
+	s, _, _ := newSetup(t, blanks(16), docker, "")
 	os.WriteFile(filepath.Join(s.Dir, ".env"), []byte("STREAMPACK_VERSION=1.15.7\nADMIN_EMAIL=me@example.com\nDB_PASSWORD=kept\n"), 0o600)
 
 	if err := s.Init(context.Background()); err != nil {
@@ -289,6 +310,18 @@ func TestInitWithAPasswordAlreadyInTheEnvDoesntLookForTheVolume(t *testing.T) {
 	env, _ := envfile.Read(filepath.Join(s.Dir, ".env"))
 	if v, _ := env.Get("DB_PASSWORD"); v != "kept" {
 		t.Errorf("DB_PASSWORD %q", v)
+	}
+}
+
+// The server stops before reading its configuration when ext/ would replace it (streampack#229).
+func TestStartupStoppedRecognizesAnExtensionReplacingTheConfiguration(t *testing.T) {
+	log := "Exception in thread \"main\" java.lang.IllegalStateException: application.yml in /opt/streampack/ext would replace the server's own configuration, not just the settings in it, so the server won't start with it. To add or change settings, move it to /opt/streampack/ext/config/, or set them in the environment.\n\tat dev.streampack.core.config.ExtensionConfigurationGuard.postProcessEnvironment(...)\n"
+	stopped := startupStopped(log)
+	if stopped == nil || len(stopped.Variables) != 0 {
+		t.Fatalf("got %+v", stopped)
+	}
+	if !strings.Contains(stopped.Error(), "ext/application.yml") || !strings.Contains(stopped.Error(), "ext/config/") {
+		t.Errorf("doesn't explain: %s", stopped.Error())
 	}
 }
 
@@ -504,6 +537,9 @@ func (s *slowScript) Line(p string) (string, error) {
 	return line, err
 }
 
+// blanks is n empty answers: every question takes its default.
+func blanks(n int) []string { return make([]string, n) }
+
 // mangled fills dir with a deployment whose files can't be read, and the tool beside them.
 func mangled(t *testing.T, dir string) {
 	t.Helper()
@@ -513,16 +549,21 @@ func mangled(t *testing.T, dir string) {
 	os.WriteFile(filepath.Join(dir, "compose.override.yaml"), []byte("services: {}"), 0o644)
 	os.MkdirAll(filepath.Join(dir, "generative", "prompts"), 0o755)
 	os.WriteFile(filepath.Join(dir, "generative", "prompts", "mine.txt"), []byte("x"), 0o644)
+	os.MkdirAll(filepath.Join(dir, "ext", "config"), 0o755)
+	os.WriteFile(filepath.Join(dir, "ext", "greet.jar"), []byte("jar"), 0o644)
+	os.MkdirAll(filepath.Join(dir, "media", "posts", "p1"), 0o755)
+	os.WriteFile(filepath.Join(dir, "media", "posts", "p1", "audio.mp3"), []byte("mp3"), 0o644)
 	os.WriteFile(filepath.Join(dir, "streampack-setup"), []byte("the tool"), 0o755)
 }
 
 var projectResources = docker.Resources{
-	Containers: []string{"q-server-streampack-1", "q-db-1"},
-	Volumes:    []string{"q_pgdata", "q_media"},
-	Networks:   []string{"q_default"},
+	Containers:  []string{"q-server-streampack-1", "q-db-1"},
+	ServerImage: "nexus.streampack.dev/images/server-streampack:1.16.0",
+	Volumes:     []string{"q_pgdata", "q_media"},
+	Networks:    []string{"q_default"},
 }
 
-func TestHardResetDeletesTheDeploymentAndKeepsTheTool(t *testing.T) {
+func TestHardResetDeletesTheDeploymentAndKeepsYourOwnFiles(t *testing.T) {
 	fake := &fakeDocker{resources: projectResources}
 	s, _, out := newSetup(t, nil, fake, "")
 	mangled(t, s.Dir)
@@ -539,13 +580,25 @@ func TestHardResetDeletesTheDeploymentAndKeepsTheTool(t *testing.T) {
 	for _, e := range entries {
 		left = append(left, e.Name())
 	}
-	if strings.Join(left, ",") != "streampack-setup" {
+	if strings.Join(left, ",") != "ext,generative,streampack-setup" {
 		t.Errorf("left %v", left)
 	}
-	for _, listed := range []string{"q_pgdata", "q-db-1", "q_default", ".env", "compose.yaml", "docker-compose.yml", "compose.override.yaml", "generative/"} {
+	for _, kept := range []string{"generative/prompts/mine.txt", "ext/greet.jar"} {
+		if _, err := os.Stat(filepath.Join(s.Dir, kept)); err != nil {
+			t.Errorf("%s: %v", kept, err)
+		}
+	}
+	// The recordings may belong to the container's root, so they're cleared from inside one.
+	if strings.Join(fake.cleared, ",") != projectResources.ServerImage+" "+filepath.Join(s.Dir, "media") {
+		t.Errorf("cleared %v", fake.cleared)
+	}
+	for _, listed := range []string{"q_pgdata", "q-db-1", "q_default", ".env", "compose.yaml", "docker-compose.yml", "compose.override.yaml", "media/"} {
 		if !strings.Contains(out.String(), listed) {
 			t.Errorf("didn't list %s:\n%s", listed, out)
 		}
+	}
+	if !strings.Contains(out.String(), "Kept: ext/, generative/") {
+		t.Errorf("didn't say what it keeps:\n%s", out)
 	}
 }
 
@@ -568,6 +621,23 @@ func TestHardResetDeletesNothingWithoutTheDirectorysName(t *testing.T) {
 	}
 }
 
+func TestHardResetWithoutAServerImageDeletesMediaDirectly(t *testing.T) {
+	fake := &fakeDocker{resources: docker.Resources{Volumes: []string{"q_pgdata"}}}
+	s, _, out := newSetup(t, nil, fake, "")
+	mangled(t, s.Dir)
+	s.Ask.(*script).answers = []string{filepath.Base(s.Dir)}
+
+	if err := s.HardReset(context.Background()); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if len(fake.cleared) != 0 {
+		t.Errorf("cleared %v", fake.cleared)
+	}
+	if _, err := os.Stat(filepath.Join(s.Dir, "media")); !os.IsNotExist(err) {
+		t.Errorf("media/ is still there: %v", err)
+	}
+}
+
 func TestHardResetWithNothingThereAsksNothing(t *testing.T) {
 	fake := &fakeDocker{}
 	s, ask, out := newSetup(t, nil, fake, "")
@@ -584,7 +654,7 @@ func TestAfterAHardResetInitIsAFirstRun(t *testing.T) {
 	fake := &fakeDocker{resources: projectResources}
 	s, ask, out := newSetup(t, nil, fake, "")
 	mangled(t, s.Dir)
-	ask.answers = []string{filepath.Base(s.Dir), "", "root@example.com", "", "", "", "", "", "", "", ""}
+	ask.answers = append([]string{filepath.Base(s.Dir), "", "", "root@example.com"}, blanks(16)...)
 
 	if err := s.HardReset(context.Background()); err != nil {
 		t.Fatal(err)

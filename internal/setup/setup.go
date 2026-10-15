@@ -105,6 +105,10 @@ func (s *Setup) Init(ctx context.Context) error {
 		}
 		env.Set("STREAMPACK_VERSION", version)
 	}
+	// The deployment's name (streampack#228): /features, the IRC identity, the user agent.
+	if err := s.askInto(env, "STREAMPACK_NAME", "The system's name", "nevet", validName); err != nil {
+		return err
+	}
 	if err := s.askInto(env, "ADMIN_EMAIL", "The super-admin's email address", "", validEmail); err != nil {
 		return err
 	}
@@ -112,6 +116,18 @@ func (s *Setup) Init(ctx context.Context) error {
 		return err
 	}
 	if err := s.askInto(env, "BLOG_BASE_URL", "The site's public address", "http://localhost:3000", validURL); err != nil {
+		return err
+	}
+	// What readers see: in pages, the mail and the feeds (streampack#232, #233).
+	name, _ := env.Get("STREAMPACK_NAME")
+	if err := s.askInto(env, "BLOG_SITE_NAME", "The site's name", name, nil); err != nil {
+		return err
+	}
+	site, _ := env.Get("BLOG_SITE_NAME")
+	if err := s.askInto(env, "BLOG_FEED_TITLE", "The feed's title", site, nil); err != nil {
+		return err
+	}
+	if err := s.askInto(env, "BLOG_FEED_DESCRIPTION", "The feed's description", defaultFeedDescription, nil); err != nil {
 		return err
 	}
 
@@ -188,8 +204,11 @@ func (s *Setup) Init(ctx context.Context) error {
 		}
 	}
 
-	if err := os.MkdirAll(filepath.Join(s.Dir, "generative"), 0o755); err != nil {
-		return err
+	// The compose file mounts these: prompt and mail templates, extensions, and recordings.
+	for _, dir := range []string{"generative", "ext", "media"} {
+		if err := os.MkdirAll(filepath.Join(s.Dir, dir), 0o755); err != nil {
+			return err
+		}
 	}
 	if wrote, err := compose.Write(s.Dir); err != nil {
 		return err
@@ -283,12 +302,20 @@ func (e *StartupStopped) Error() string {
 	return "the server didn't start:\n" + e.Block
 }
 
+// The server's ExtensionConfigurationGuard (streampack#229): a configuration file at ext/'s top.
+var extensionConfiguration = regexp.MustCompile(`(application\.(?:yml|yaml|properties))(?:, [^ ]+)* in \S+ would replace the server's own configuration`)
+
 var named = regexp.MustCompile(`(?:requires environment variable|; set) ([A-Z][A-Z0-9_]+)`)
 
 // startupStopped looks in the server's log for a refused start.
 func startupStopped(log string) *StartupStopped {
 	if strings.Contains(log, "password authentication failed for user") {
 		return &StartupStopped{WrongDatabasePassword: true}
+	}
+	if m := extensionConfiguration.FindStringSubmatch(log); m != nil {
+		return &StartupStopped{Block: "ext/" + m[1] + " would replace the server's own configuration, " +
+			"not just the settings in it, so the server won't start with it. Move it to ext/config/ " +
+			"to add settings, or set them in .env; then run `./streampack-setup up`."}
 	}
 	start := strings.LastIndex(log, "SECURITY STARTUP CHECK FAILED")
 	if start < 0 {
@@ -460,6 +487,19 @@ func (s *Setup) required(question, def string, valid func(string) error) (string
 func validEmail(value string) error {
 	if address, err := mail.ParseAddress(value); err != nil || address.Address != value {
 		return fmt.Errorf("%q isn't an email address", value)
+	}
+	return nil
+}
+
+// defaultFeedDescription is the server's own default for BLOG_FEED_DESCRIPTION.
+const defaultFeedDescription = "JVM ecosystem news and community content"
+
+var nameChars = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+
+// validName is a name fit for a user agent and the MCP server's name: no spaces.
+func validName(value string) error {
+	if !nameChars.MatchString(value) {
+		return fmt.Errorf("%q should be letters, digits, '.', '_' or '-', with no spaces", value)
 	}
 	return nil
 }

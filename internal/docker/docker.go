@@ -34,11 +34,16 @@ type Compose interface {
 	Resources(ctx context.Context) (Resources, error)
 	// RemoveResources removes them: containers, then volumes and networks.
 	RemoveResources(ctx context.Context, r Resources) error
+	// ClearDirectory empties the host directory dir from inside a throwaway container of image, as
+	// root, since what the server wrote there belongs to the container's root.
+	ClearDirectory(ctx context.Context, image, dir string) error
 }
 
-// Resources are a project's containers, volumes and networks, by name.
+// Resources are a project's containers, volumes and networks, by name, and the image its server
+// container runs, if it has one.
 type Resources struct {
 	Containers, Volumes, Networks []string
+	ServerImage                   string
 }
 
 // Empty says whether there's nothing.
@@ -112,11 +117,25 @@ func (c CLI) RemoveVolume(ctx context.Context, volume string) error {
 func (c CLI) Resources(ctx context.Context) (Resources, error) {
 	label := "label=com.docker.compose.project=" + c.Project()
 	var r Resources
+	containers, err := c.docker(ctx, "ps", "-a", "--filter", label, "--format",
+		`{{.Names}}\t{{.Image}}\t{{.Label "com.docker.compose.service"}}`)
+	if err != nil {
+		return Resources{}, err
+	}
+	for _, line := range strings.Split(strings.TrimSpace(containers), "\n") {
+		fields := strings.Split(line, "\t")
+		if fields[0] == "" {
+			continue
+		}
+		r.Containers = append(r.Containers, fields[0])
+		if len(fields) == 3 && fields[2] == "server-streampack" {
+			r.ServerImage = fields[1]
+		}
+	}
 	for _, list := range []struct {
 		into *[]string
 		args []string
 	}{
-		{&r.Containers, []string{"ps", "-a", "--filter", label, "--format", "{{.Names}}"}},
 		{&r.Volumes, []string{"volume", "ls", "--filter", label, "--format", "{{.Name}}"}},
 		{&r.Networks, []string{"network", "ls", "--filter", label, "--format", "{{.Name}}"}},
 	} {
@@ -148,6 +167,27 @@ func (c CLI) RemoveResources(ctx context.Context, r Resources) error {
 		}
 	}
 	return nil
+}
+
+func (c CLI) ClearDirectory(ctx context.Context, image, dir string) error {
+	args := []string{"run", "--rm", "-v", dir + ":/clear", "--entrypoint", "sh", image, "-c",
+		"rm -rf /clear/* /clear/.[!.]* /clear/..?*"}
+	fmt.Fprintf(c.Out, "$ docker %s\n", shellJoin(args))
+	_, err := c.docker(ctx, args...)
+	return err
+}
+
+// shellJoin joins args as a shell would read them back, quoting any with spaces or globs, so a
+// printed command can be copied and run.
+func shellJoin(args []string) string {
+	quoted := make([]string, len(args))
+	for i, a := range args {
+		if strings.ContainsAny(a, " *?[]$'\"") {
+			a = "'" + strings.ReplaceAll(a, "'", `'\''`) + "'"
+		}
+		quoted[i] = a
+	}
+	return strings.Join(quoted, " ")
 }
 
 // docker runs a plain docker command (not compose) and returns its output. It needs no working
