@@ -60,6 +60,7 @@ It's the file from streampack's [Run the Published Image with Docker Compose](ht
 | `STREAMPACK_LOCAL_ADMIN_TOKEN_FILE: /run/streampack/admin-token`, on a `tmpfs` at `/run/streampack` | The console signs in with this token. |
 | `ports: "127.0.0.1:8080:8080"` | The default `--url`. If you change the port, pass `--url`. |
 | `env_file: .env` | `secrets` writes credentials there. |
-| `./media`, `./ext` and `./generative` mounted at `/opt/streampack/…` | `init` makes the directories, and a hard reset knows which to keep. |
+| `./media`, `./ext` and `./generative` mounted at `/opt/streampack/…`, with `z` | `init` makes the directories, and a hard reset knows which to keep. `z` lets the container read them under SELinux. |
+| Images named in full (`docker.io/library/postgres:18`) | Podman refuses a short name when it can't ask which registry is meant. |
 
 A compose file that's already in the directory, under any of the names Compose looks for (`compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`), is never replaced, and none is added beside it. If yours lacks the token file, `console` and `secrets` say there's no token.

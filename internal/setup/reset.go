@@ -54,6 +54,7 @@ func (s *Setup) HardReset(ctx context.Context) error {
 		names []string
 	}{
 		{"Containers", resources.Containers},
+		{"Pods", resources.Pods},
 		{"Volumes", resources.Volumes},
 		{"Networks", resources.Networks},
 		{"Files in " + s.Dir, files},

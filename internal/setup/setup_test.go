@@ -72,6 +72,7 @@ type fakeDocker struct {
 	cleared []string
 }
 
+func (f *fakeDocker) ComposeCommand() string     { return "docker compose" }
 func (f *fakeDocker) Pull(context.Context) error { f.pulls++; return nil }
 func (f *fakeDocker) Up(context.Context) error {
 	f.mu.Lock()

@@ -289,6 +289,8 @@ type StartupStopped struct {
 	Variables []string
 	// WrongDatabasePassword is a database that refused DB_PASSWORD (#4)
 	WrongDatabasePassword bool
+	// Compose is the Compose command, as you'd type it, for the way out the message gives
+	Compose string
 }
 
 func (e *StartupStopped) Error() string {
@@ -297,7 +299,7 @@ func (e *StartupStopped) Error() string {
 			"The database keeps the password it was first given; .env has a different one, usually because\n" +
 			".env was written again after the database was made. Either put the original password in .env\n" +
 			"as DB_PASSWORD and run `./streampack-setup up`, or, losing the database's contents, start it afresh:\n" +
-			"  docker compose down -v && ./streampack-setup up"
+			"  " + e.Compose + " down -v && ./streampack-setup up"
 	}
 	return "the server didn't start:\n" + e.Block
 }
@@ -352,12 +354,13 @@ func (s *Setup) waitReady(ctx context.Context) error {
 			return nil
 		}
 		if stopped := startupStopped(log); stopped != nil {
+			stopped.Compose = s.Docker.ComposeCommand()
 			return stopped
 		}
 		return nil
 	})
 	if errors.Is(err, context.DeadlineExceeded) {
-		return fmt.Errorf("the server didn't answer within %s; see `docker compose logs %s`", timeout, compose.Service)
+		return fmt.Errorf("the server didn't answer within %s; see `%s logs %s`", timeout, s.Docker.ComposeCommand(), compose.Service)
 	}
 	if err == nil {
 		fmt.Fprintln(s.Out, "The server is ready.")

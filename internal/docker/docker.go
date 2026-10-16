@@ -1,5 +1,5 @@
-// Package docker runs `docker compose` in the deployment directory, as a command a person could
-// type, so every step the tool takes can be rerun by hand.
+// Package docker runs Compose in the deployment directory, as a command a person could type, so
+// every step the tool takes can be rerun by hand. Docker or Podman, whichever is here (Detect).
 package docker
 
 import (
@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -29,36 +28,50 @@ type Compose interface {
 	Volume(ctx context.Context, name string) (string, error)
 	// RemoveVolume removes the project's containers, which hold the volume, and then the volume.
 	RemoveVolume(ctx context.Context, volume string) error
-	// Resources lists what the project has in Docker, found by its label, so it works however
+	// Resources lists what the project has in the engine, found by its label, so it works however
 	// broken .env and the compose file are.
 	Resources(ctx context.Context) (Resources, error)
-	// RemoveResources removes them: containers, then volumes and networks.
+	// RemoveResources removes them: containers, then pods, volumes and networks.
 	RemoveResources(ctx context.Context, r Resources) error
 	// ClearDirectory empties the host directory dir from inside a throwaway container of image, as
 	// root, since what the server wrote there belongs to the container's root.
 	ClearDirectory(ctx context.Context, image, dir string) error
+	// ComposeCommand is Compose as you'd type it, for messages: docker compose, podman-compose…
+	ComposeCommand() string
 }
 
-// Resources are a project's containers, volumes and networks, by name, and the image its server
-// container runs, if it has one.
+// Resources are a project's containers, pods (podman-compose's), volumes and networks, by name,
+// and the image its server container runs, if it has one.
 type Resources struct {
-	Containers, Volumes, Networks []string
-	ServerImage                   string
+	Containers, Pods, Volumes, Networks []string
+	ServerImage                         string
 }
 
 // Empty says whether there's nothing.
 func (r Resources) Empty() bool {
-	return len(r.Containers)+len(r.Volumes)+len(r.Networks) == 0
+	return len(r.Containers)+len(r.Pods)+len(r.Volumes)+len(r.Networks) == 0
 }
 
-// CLI is Compose by the docker command, in Dir; progress goes to Out.
+// CLI is Compose by Engine's commands, in Dir; progress goes to Out. Run runs them; nil is Exec.
 type CLI struct {
-	Dir string
-	Out io.Writer
+	Dir    string
+	Out    io.Writer
+	Engine Engine
+	Run    Runner
 }
+
+func (c CLI) ComposeCommand() string { return c.Engine.ComposeCommand() }
 
 func (c CLI) Pull(ctx context.Context) error { return c.run(ctx, "pull") }
-func (c CLI) Up(ctx context.Context) error   { return c.run(ctx, "up", "-d") }
+
+// Up starts the services. podman-compose recreates a service only when the compose file changes,
+// not .env, so it's told to.
+func (c CLI) Up(ctx context.Context) error {
+	if c.Engine.PodmanCompose {
+		return c.run(ctx, "up", "-d", "--force-recreate")
+	}
+	return c.run(ctx, "up", "-d")
+}
 
 func (c CLI) Exec(ctx context.Context, service string, args ...string) (string, error) {
 	return c.output(ctx, append([]string{"exec", "-T", service}, args...)...)
@@ -88,14 +101,21 @@ func ProjectName(dir string) string {
 	return strings.TrimLeft(b.String(), "-_")
 }
 
+// Volume finds the volume by the project's label and the name both Composes give it,
+// <project>_<name>: podman-compose doesn't label a volume with its own name.
 func (c CLI) Volume(ctx context.Context, name string) (string, error) {
-	out, err := c.docker(ctx, "volume", "ls", "-q",
-		"--filter", "label=com.docker.compose.project="+c.Project(),
-		"--filter", "label=com.docker.compose.volume="+name)
+	out, err := c.docker(ctx, "volume", "ls", "--filter", "label=com.docker.compose.project="+c.Project(),
+		"--format", "{{.Name}}")
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(strings.SplitN(out, "\n", 2)[0]), nil
+	want := c.Project() + "_" + name
+	for _, volume := range strings.Fields(out) {
+		if volume == want {
+			return volume, nil
+		}
+	}
+	return "", nil
 }
 
 func (c CLI) RemoveVolume(ctx context.Context, volume string) error {
@@ -104,32 +124,47 @@ func (c CLI) RemoveVolume(ctx context.Context, volume string) error {
 		return err
 	}
 	if ids := strings.Fields(containers); len(ids) > 0 {
-		fmt.Fprintf(c.Out, "$ docker rm -f %s\n", strings.Join(ids, " "))
+		fmt.Fprintf(c.Out, "$ %s rm -f %s\n", c.Engine.Name, strings.Join(ids, " "))
 		if _, err := c.docker(ctx, append([]string{"rm", "-f"}, ids...)...); err != nil {
 			return err
 		}
 	}
-	fmt.Fprintf(c.Out, "$ docker volume rm %s\n", volume)
+	fmt.Fprintf(c.Out, "$ %s volume rm %s\n", c.Engine.Name, volume)
 	_, err = c.docker(ctx, "volume", "rm", volume)
 	return err
 }
 
+// Resources asks only for fields every engine's templates have (.Names, .Image, .Name), and finds
+// the server's container by a second filter: Docker's {{.Label}} is unknown to Podman, and
+// Podman's {{index .Labels}} fails on Docker.
 func (c CLI) Resources(ctx context.Context) (Resources, error) {
 	label := "label=com.docker.compose.project=" + c.Project()
 	var r Resources
-	containers, err := c.docker(ctx, "ps", "-a", "--filter", label, "--format",
-		`{{.Names}}\t{{.Image}}\t{{.Label "com.docker.compose.service"}}`)
+	containers, err := c.docker(ctx, "ps", "-a", "--filter", label, "--format", "{{.Names}}")
 	if err != nil {
 		return Resources{}, err
 	}
-	for _, line := range strings.Split(strings.TrimSpace(containers), "\n") {
-		fields := strings.Split(line, "\t")
-		if fields[0] == "" {
-			continue
+	r.Containers = strings.Fields(containers)
+	if len(r.Containers) > 0 {
+		images, err := c.docker(ctx, "ps", "-a", "--filter", label,
+			"--filter", "label=com.docker.compose.service=server-streampack", "--format", "{{.Image}}")
+		if err != nil {
+			return Resources{}, err
 		}
-		r.Containers = append(r.Containers, fields[0])
-		if len(fields) == 3 && fields[2] == "server-streampack" {
-			r.ServerImage = fields[1]
+		if fields := strings.Fields(images); len(fields) > 0 {
+			r.ServerImage = fields[0]
+		}
+	}
+	if c.Engine.Name == "podman" {
+		// podman-compose puts the services in a pod named for the project, with no label.
+		pods, err := c.docker(ctx, "pod", "ls", "--format", "{{.Name}}")
+		if err != nil {
+			return Resources{}, err
+		}
+		for _, pod := range strings.Fields(pods) {
+			if pod == "pod_"+c.Project() {
+				r.Pods = append(r.Pods, pod)
+			}
 		}
 	}
 	for _, list := range []struct {
@@ -154,6 +189,7 @@ func (c CLI) RemoveResources(ctx context.Context, r Resources) error {
 		names []string
 	}{
 		{[]string{"rm", "-f"}, r.Containers},
+		{[]string{"pod", "rm", "-f"}, r.Pods},
 		{[]string{"volume", "rm"}, r.Volumes},
 		{[]string{"network", "rm"}, r.Networks},
 	} {
@@ -161,7 +197,7 @@ func (c CLI) RemoveResources(ctx context.Context, r Resources) error {
 			continue
 		}
 		args := append(append([]string{}, step.args...), step.names...)
-		fmt.Fprintf(c.Out, "$ docker %s\n", strings.Join(args, " "))
+		fmt.Fprintf(c.Out, "$ %s %s\n", c.Engine.Name, strings.Join(args, " "))
 		if _, err := c.docker(ctx, args...); err != nil {
 			return err
 		}
@@ -169,10 +205,12 @@ func (c CLI) RemoveResources(ctx context.Context, r Resources) error {
 	return nil
 }
 
+// ClearDirectory mounts dir with z, so SELinux lets the container at it; without SELinux, z does
+// nothing.
 func (c CLI) ClearDirectory(ctx context.Context, image, dir string) error {
-	args := []string{"run", "--rm", "-v", dir + ":/clear", "--entrypoint", "sh", image, "-c",
+	args := []string{"run", "--rm", "-v", dir + ":/clear:z", "--entrypoint", "sh", image, "-c",
 		"rm -rf /clear/* /clear/.[!.]* /clear/..?*"}
-	fmt.Fprintf(c.Out, "$ docker %s\n", shellJoin(args))
+	fmt.Fprintf(c.Out, "$ %s %s\n", c.Engine.Name, shellJoin(args))
 	_, err := c.docker(ctx, args...)
 	return err
 }
@@ -190,31 +228,41 @@ func shellJoin(args []string) string {
 	return strings.Join(quoted, " ")
 }
 
-// docker runs a plain docker command (not compose) and returns its output. It needs no working
+// docker runs a plain engine command (not Compose) and returns its output. It needs no working
 // directory, so it runs before init has made Dir.
 func (c CLI) docker(ctx context.Context, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "docker", args...)
 	var out, errOut bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &out, &errOut
-	if err := cmd.Run(); err != nil {
-		return out.String(), fmt.Errorf("docker %s: %w: %s", strings.Join(args[:2], " "), err, strings.TrimSpace(errOut.String()))
+	if err := c.runner()(ctx, "", &out, &errOut, c.Engine.Name, args...); err != nil {
+		return out.String(), fmt.Errorf("%s %s: %w: %s", c.Engine.Name, strings.Join(args[:2], " "), err,
+			strings.TrimSpace(errOut.String()))
 	}
 	return out.String(), nil
 }
 
 func (c CLI) run(ctx context.Context, args ...string) error {
-	fmt.Fprintf(c.Out, "$ docker compose %s\n", strings.Join(args, " "))
-	cmd := exec.CommandContext(ctx, "docker", append([]string{"compose"}, args...)...)
-	cmd.Dir, cmd.Stdout, cmd.Stderr = c.Dir, c.Out, c.Out
-	return cmd.Run()
+	fmt.Fprintf(c.Out, "$ %s %s\n", c.ComposeCommand(), strings.Join(args, " "))
+	name, full := c.compose(args)
+	return c.runner()(ctx, c.Dir, c.Out, c.Out, name, full...)
 }
 
 func (c CLI) output(ctx context.Context, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "docker", append([]string{"compose"}, args...)...)
 	var out, errOut bytes.Buffer
-	cmd.Dir, cmd.Stdout, cmd.Stderr = c.Dir, &out, &errOut
-	if err := cmd.Run(); err != nil {
-		return out.String(), fmt.Errorf("docker compose %s: %w: %s", args[0], err, strings.TrimSpace(errOut.String()))
+	name, full := c.compose(args)
+	err := c.runner()(ctx, c.Dir, &out, &errOut, name, full...)
+	if err != nil {
+		return out.String(), fmt.Errorf("%s %s: %w: %s", c.ComposeCommand(), args[0], err, strings.TrimSpace(errOut.String()))
 	}
 	return out.String(), nil
+}
+
+// compose is the command and arguments that run Compose with args.
+func (c CLI) compose(args []string) (string, []string) {
+	return c.Engine.Compose[0], append(append([]string{}, c.Engine.Compose[1:]...), args...)
+}
+
+func (c CLI) runner() Runner {
+	if c.Run != nil {
+		return c.Run
+	}
+	return Exec
 }
