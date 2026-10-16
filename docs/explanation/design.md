@@ -32,6 +32,7 @@ The tool runs Compose in the deployment directory and prints each command as it 
 The tool doesn't mind whether Docker or Podman runs the containers. It finds out at the start of each run, and uses that engine's own commands, so what it prints is what ran. It asks each engine only what both answer the same way. Docker's `{{.Label}}` template function, for example, is unknown to Podman, and Podman's `{{index .Labels}}` fails on Docker, so the tool filters by labels and never prints them. Where the engines differ, the tool works with both:
 
 - podman-compose puts the containers in a pod, `pod_<project>`. A hard reset removes it.
+- podman-compose turns `depends_on` into a dependency Podman enforces: it won't remove the database while the server needs it. The tool removes containers with `--depend`, which takes the dependents too.
 - podman-compose labels a volume with its project but not its name, so the tool finds a volume by its full name, `<project>_<name>`, which both name it.
 - Podman won't guess the registry for a short image name, so `compose.yaml` names `postgres` in full.
 - Fedora, RHEL and Rocky Linux enforce SELinux, so the host directories are mounted with `z`. Elsewhere, `z` does nothing.

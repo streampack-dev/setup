@@ -26,21 +26,22 @@ Run the tool:
 ./streampack-setup
 ```
 
-Take the defaults by pressing Enter, except for your email address. Answer no to every integration:
+Take the defaults by pressing Enter, except for your email address. Every integration is off unless you turn it on:
 
 ```text
-streampack-setup 0.1.3
+streampack-setup 0.1.5
+Containers: docker, with docker compose
 Setting up a server-streampack deployment in /home/you/streampack
 Server version [1.16.0]:
-The system's name [nevet]:
+The system's name [streampack]:
 The super-admin's email address: you@example.com
 The API's public address [http://localhost:8080]:
 The site's public address [http://localhost:3000]:
-The site's name [nevet]:
-The feed's title [nevet]:
-The feed's description [JVM ecosystem news and community content]:
-Turn on Mattermost? [Y/n]: n
-Turn on GitLab? [Y/n]: n
+The site's name [streampack]:
+The feed's title [streampack]:
+The feed's description [Posts from streampack]:
+Turn on Mattermost? [y/N]:
+Turn on GitLab? [y/N]:
 Turn on IRC? [y/N]:
 Turn on Slack? [y/N]:
 Turn on Discord? [y/N]:

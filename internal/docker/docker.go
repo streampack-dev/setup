@@ -124,8 +124,9 @@ func (c CLI) RemoveVolume(ctx context.Context, volume string) error {
 		return err
 	}
 	if ids := strings.Fields(containers); len(ids) > 0 {
-		fmt.Fprintf(c.Out, "$ %s rm -f %s\n", c.Engine.Name, strings.Join(ids, " "))
-		if _, err := c.docker(ctx, append([]string{"rm", "-f"}, ids...)...); err != nil {
+		args := append(c.removeContainers(), ids...)
+		fmt.Fprintf(c.Out, "$ %s %s\n", c.Engine.Name, strings.Join(args, " "))
+		if _, err := c.docker(ctx, args...); err != nil {
 			return err
 		}
 	}
@@ -188,7 +189,7 @@ func (c CLI) RemoveResources(ctx context.Context, r Resources) error {
 		args  []string
 		names []string
 	}{
-		{[]string{"rm", "-f"}, r.Containers},
+		{c.removeContainers(), r.Containers},
 		{[]string{"pod", "rm", "-f"}, r.Pods},
 		{[]string{"volume", "rm"}, r.Volumes},
 		{[]string{"network", "rm"}, r.Networks},
@@ -203,6 +204,17 @@ func (c CLI) RemoveResources(ctx context.Context, r Resources) error {
 		}
 	}
 	return nil
+}
+
+// removeContainers is the command that removes containers, before their names. podman-compose
+// makes depends_on a Podman dependency, and Podman won't remove a container another still
+// requires: --depend takes the dependents with it, and --ignore skips those already gone. Docker
+// has neither the dependency nor the flags.
+func (c CLI) removeContainers() []string {
+	if c.Engine.Name == "podman" {
+		return []string{"rm", "-f", "--depend", "--ignore"}
+	}
+	return []string{"rm", "-f"}
 }
 
 // ClearDirectory mounts dir with z, so SELinux lets the container at it; without SELinux, z does

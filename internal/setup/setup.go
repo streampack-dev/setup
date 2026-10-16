@@ -61,18 +61,18 @@ func (s *Setup) Configured() (bool, error) {
 }
 
 // adapter is an integration that can be turned on at the first run. Its credentials are given at
-// the console later, except for the few that must be in the environment from the start.
+// the console later, except for the few that must be in the environment from the start. None is
+// on unless the person says so (setup#17).
 type adapter struct {
 	name, variable string
-	on             bool
 	// keys the adapter needs in .env before it starts: generated, or asked for
 	generated []string
 	asked     []string
 }
 
 var adapters = []adapter{
-	{name: "Mattermost", variable: "MATTERMOST_ENABLED", on: true},
-	{name: "GitLab", variable: "GITLAB_ENABLED", on: true, generated: []string{"GITLAB_WEBHOOK_SECRET_KEY"}},
+	{name: "Mattermost", variable: "MATTERMOST_ENABLED"},
+	{name: "GitLab", variable: "GITLAB_ENABLED", generated: []string{"GITLAB_WEBHOOK_SECRET_KEY"}},
 	{name: "IRC", variable: "IRC_ENABLED"},
 	{name: "Slack", variable: "SLACK_ENABLED"},
 	{name: "Discord", variable: "DISCORD_ENABLED", asked: []string{"DISCORD_APPLICATION_ID", "DISCORD_PUBLIC_KEY", "DISCORD_BOT_TOKEN"}},
@@ -106,7 +106,7 @@ func (s *Setup) Init(ctx context.Context) error {
 		env.Set("STREAMPACK_VERSION", version)
 	}
 	// The deployment's name (streampack#228): /features, the IRC identity, the user agent.
-	if err := s.askInto(env, "STREAMPACK_NAME", "The system's name", "nevet", validName); err != nil {
+	if err := s.askInto(env, "STREAMPACK_NAME", "The system's name", defaultName, validName); err != nil {
 		return err
 	}
 	if err := s.askInto(env, "ADMIN_EMAIL", "The super-admin's email address", "", validEmail); err != nil {
@@ -127,7 +127,8 @@ func (s *Setup) Init(ctx context.Context) error {
 	if err := s.askInto(env, "BLOG_FEED_TITLE", "The feed's title", site, nil); err != nil {
 		return err
 	}
-	if err := s.askInto(env, "BLOG_FEED_DESCRIPTION", "The feed's description", defaultFeedDescription, nil); err != nil {
+	feed, _ := env.Get("BLOG_FEED_TITLE")
+	if err := s.askInto(env, "BLOG_FEED_DESCRIPTION", "The feed's description", "Posts from "+feed, nil); err != nil {
 		return err
 	}
 
@@ -146,7 +147,7 @@ func (s *Setup) Init(ctx context.Context) error {
 		if _, ok := env.Get(a.variable); ok {
 			continue
 		}
-		on, err := s.Ask.Confirm("Turn on "+a.name+"?", a.on)
+		on, err := s.Ask.Confirm("Turn on "+a.name+"?", false)
 		if err != nil {
 			return err
 		}
@@ -495,7 +496,8 @@ func validEmail(value string) error {
 }
 
 // defaultFeedDescription is the server's own default for BLOG_FEED_DESCRIPTION.
-const defaultFeedDescription = "JVM ecosystem news and community content"
+// defaultName names nobody's deployment in particular.
+const defaultName = "streampack"
 
 var nameChars = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 

@@ -17,18 +17,18 @@
 | Key | Source | Notes |
 |-----|--------|-------|
 | `STREAMPACK_VERSION` | Asked (required) | The image tag. The default is the registry's newest. |
-| `STREAMPACK_NAME` | Asked (required) | The deployment's name: in `/features`, the IRC identity, the user agent and the MCP server's name. Default `nevet`. Letters, digits, `.`, `_` and `-`, with no spaces. |
+| `STREAMPACK_NAME` | Asked (required) | The deployment's name: in `/features`, the IRC identity, the user agent and the MCP server's name. Default `streampack`. Letters, digits, `.`, `_` and `-`, with no spaces. |
 | `ADMIN_EMAIL` | Asked (required) | The super-admin, created on the server's first start. |
 | `BASE_URL` | Asked (required) | The API's public address. Default `http://localhost:8080`. |
 | `BLOG_BASE_URL` | Asked (required) | The site's public address. Default `http://localhost:3000`. |
 | `BLOG_SITE_NAME` | Asked (required) | The site's name, as readers see it: in pages, the mail and the feeds. Default: the system's name. |
 | `BLOG_FEED_TITLE` | Asked (required) | The post feeds' title. Default: the site's name. |
-| `BLOG_FEED_DESCRIPTION` | Asked (required) | The post feeds' description. Default: the server's, `JVM ecosystem news and community content`. |
+| `BLOG_FEED_DESCRIPTION` | Asked (required) | The post feeds' description. Default: "Posts from" and the feed's title. |
 | `DB_PASSWORD` | Generated | 24 random bytes, base64url. The server and PostgreSQL both use it. |
 | `JWT_SECRET` | Generated | 48 random bytes, base64url. |
 | `GITHUB_WEBHOOK_SECRET_KEY` | Generated | 32 random bytes, hex. |
-| `MATTERMOST_ENABLED` | Asked, default yes | `true` or `false`. |
-| `GITLAB_ENABLED` | Asked, default yes | `true` or `false`. |
+| `MATTERMOST_ENABLED` | Asked, default no | `true` or `false`. |
+| `GITLAB_ENABLED` | Asked, default no | `true` or `false`. |
 | `GITLAB_WEBHOOK_SECRET_KEY` | Generated if GitLab is on | 32 random bytes, hex. |
 | `IRC_ENABLED`, `SLACK_ENABLED` | Asked, default no | `true` or `false`. |
 | `DISCORD_ENABLED` | Asked, default no | `true` or `false`. |

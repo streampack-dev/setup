@@ -39,11 +39,11 @@ flowchart TD
 0. **An existing database.** If `.env` has no `DB_PASSWORD` but the deployment's database volume exists (a `.env` lost after an earlier run), `init` asks for that database's password, or offers to delete the volume. A generated password would never open it: Postgres keeps the one it was first given. See [After Losing `.env`](../how-to/recover-a-refused-start.md#after-losing-env).
 
 1. **The server version.** It suggests the newest tag in the image registry. If the registry can't be reached, it says so and asks with no default.
-2. **The system's name** (`STREAMPACK_NAME`), default `nevet`.
+2. **The system's name** (`STREAMPACK_NAME`), default `streampack`.
 3. **The super-admin's email address, the API's public address and the site's public address.** Each is checked: an email address, and addresses that start with `http://` or `https://`.
-4. **The site's name and its feed.** The site's name (`BLOG_SITE_NAME`) defaults to the system's name, the feed's title (`BLOG_FEED_TITLE`) to the site's name, and the feed's description (`BLOG_FEED_DESCRIPTION`) to the server's own.
+4. **The site's name and its feed.** The site's name (`BLOG_SITE_NAME`) defaults to the system's name, the feed's title (`BLOG_FEED_TITLE`) to the site's name, and the feed's description (`BLOG_FEED_DESCRIPTION`) to "Posts from" and the feed's title.
 5. **Generated values:** the database password, the JWT secret and GitHub's webhook key. They're random, made on this box, and never shown.
-6. **Which integrations to turn on.** Mattermost and GitLab default to yes, IRC, Slack and Discord to no. GitLab gets a generated webhook key. Discord's three values are asked for straight away, because the server needs them before it starts. The others need nothing yet.
+6. **Which integrations to turn on.** Each defaults to no: nothing is on unless you say so. GitLab gets a generated webhook key. Discord's three values are asked for straight away, because the server needs them before it starts. The others need nothing yet.
 7. **Mail.** If you want it: the SMTP host, port, sender, and optionally a username and password.
 8. **The files.** It writes `compose.yaml` if there isn't one, and never overwrites one that's there. It makes `generative/`, `ext/` and `media/`, and writes `.env` with mode 600.
 

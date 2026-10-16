@@ -156,19 +156,57 @@ func newSetup(t *testing.T, answers []string, docker *fakeDocker, url string) (*
 	return s, ask, out
 }
 
+// Enter at every question turns nothing on, and names nobody's deployment (setup#17).
+func TestInitDefaultsTurnNothingOn(t *testing.T) {
+	s, _, _ := newSetup(t, []string{
+		"",                    // version: the newest release
+		"",                    // the system's name
+		"root@example.com",    // admin, which has no default
+		"",                    // API address
+		"https://example.com", // site address, which has no default
+		"", "", "",            // site's name, feed title, feed description
+		"", "", "", "", "", // Mattermost, GitLab, IRC, Slack, Discord
+		"", // mail
+	}, &fakeDocker{}, "")
+
+	if err := s.Init(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	env, _ := envfile.Read(filepath.Join(s.Dir, ".env"))
+	for key, want := range map[string]string{
+		"MATTERMOST_ENABLED":    "false",
+		"GITLAB_ENABLED":        "false",
+		"IRC_ENABLED":           "false",
+		"SLACK_ENABLED":         "false",
+		"DISCORD_ENABLED":       "false",
+		"MAIL_ENABLED":          "false",
+		"STREAMPACK_NAME":       "streampack",
+		"BLOG_SITE_NAME":        "streampack",
+		"BLOG_FEED_TITLE":       "streampack",
+		"BLOG_FEED_DESCRIPTION": "Posts from streampack",
+	} {
+		if got, _ := env.Get(key); got != want {
+			t.Errorf("%s = %q, want %q", key, got, want)
+		}
+	}
+	if _, ok := env.Get("GITLAB_WEBHOOK_SECRET_KEY"); ok {
+		t.Error("GitLab's webhook key generated with GitLab off")
+	}
+}
+
 func TestInitAsksWhatStartingNeedsAndWritesTheFiles(t *testing.T) {
 	s, _, _ := newSetup(t, []string{
 		"",                    // version: the newest release
-		"gholem",              // the system's name
+		"lantern",             // the system's name
 		"not an address",      // refused
 		"root@example.com",    // admin
 		"",                    // API address, default
 		"https://example.com", // site address
-		"Gholem",              // the site's name
+		"Lantern",             // the site's name
 		"",                    // feed title: the site's name
 		"News for the team",   // feed description
-		"",                    // Mattermost: yes by default
-		"",                    // GitLab: yes by default
+		"",                    // Mattermost: no by default
+		"y",                   // GitLab
 		"",                    // IRC: no
 		"y",                   // Slack
 		"",                    // Discord: no
@@ -184,15 +222,15 @@ func TestInitAsksWhatStartingNeedsAndWritesTheFiles(t *testing.T) {
 		"ADMIN_EMAIL":           "root@example.com",
 		"BASE_URL":              "http://localhost:8080",
 		"BLOG_BASE_URL":         "https://example.com",
-		"MATTERMOST_ENABLED":    "true",
+		"MATTERMOST_ENABLED":    "false",
 		"GITLAB_ENABLED":        "true",
 		"IRC_ENABLED":           "false",
 		"SLACK_ENABLED":         "true",
 		"DISCORD_ENABLED":       "false",
 		"MAIL_ENABLED":          "false",
-		"STREAMPACK_NAME":       "gholem",
-		"BLOG_SITE_NAME":        "Gholem",
-		"BLOG_FEED_TITLE":       "Gholem",
+		"STREAMPACK_NAME":       "lantern",
+		"BLOG_SITE_NAME":        "Lantern",
+		"BLOG_FEED_TITLE":       "Lantern",
 		"BLOG_FEED_DESCRIPTION": "News for the team",
 	} {
 		if got, _ := env.Get(key); got != want {
