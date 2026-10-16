@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -124,11 +125,17 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
+	engine, err := docker.Detect(ctx, exec.LookPath, docker.Exec)
+	if err != nil {
+		fail(err)
+	}
+	fmt.Println("Containers: " + engine.String())
+
 	httpClient := &http.Client{}
 	s := &setup.Setup{
 		Dir:    absolute,
 		Ask:    &prompt.Terminal{In: os.Stdin, Out: os.Stdout},
-		Docker: docker.CLI{Dir: absolute, Out: os.Stdout},
+		Docker: docker.CLI{Dir: absolute, Out: os.Stdout, Engine: engine},
 		Out:    os.Stdout,
 		Latest: func(ctx context.Context) (string, error) {
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)

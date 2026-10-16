@@ -6,7 +6,7 @@ Afterwards, streampack's [Deploy with Docker for Mattermost and GitLab](https://
 
 ## What You Need
 
-- A Mac with Docker Desktop, or a Linux computer with Docker and the Compose plugin.
+- A Mac or a Linux computer with Docker or Podman, and Compose. [Install the Tool](../how-to/install-the-tool.md#get-a-container-engine) tells how to get them.
 - Port 8080 free on `127.0.0.1`. A development server-streampack (`just run` in streampack) also uses this port. Stop it before you start.
 
 ## 1. Install the Tool
@@ -69,6 +69,8 @@ The server is ready.
 Console open as you.
 ```
 
+This tutorial shows Docker's commands. With Podman, the tool runs `podman-compose` instead, and shows that.
+
 The lines starting with `$` are the commands it ran. You could have typed them yourself.
 
 ## 4. Use the Console
@@ -111,7 +113,7 @@ docker compose down -v
 ## What You've Learned
 
 - The tool asks only what starting needs, and generates the secrets itself.
-- Each step is a `docker compose` command, run in the directory you chose.
+- Each step is a Compose command, run in the directory you chose.
 - The console speaks the server's own commands, and signs in without a password.
 - Run it again whenever you want the console back.
 

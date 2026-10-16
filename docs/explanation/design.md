@@ -21,11 +21,22 @@ You type each credential twice, once at the console and again when the tool asks
 
 ## `up -d`, Not `restart`
 
-Compose reads `.env` when it creates a container, not when it restarts one. After `.env` changes, the tool runs `docker compose up -d`, which recreates the server container because its configuration changed. The database container is left as it is.
+Compose reads `.env` when it creates a container, not when it restarts one. After `.env` changes, the tool runs `docker compose up -d`, which recreates the server container because its configuration changed. The database container is left as it is. podman-compose doesn't see a change to `.env`, so with it the tool runs `up -d --force-recreate`, which recreates the database container too; its data is in the volume, and stays.
 
 ## Every Step Is a Compose Command
 
-The tool runs `docker compose` in the deployment directory and prints each command as it runs it. Nothing it does is hidden: you can run any step by hand, read `compose.yaml`, or stop using the tool altogether. The directory is an ordinary Compose deployment, the same one streampack's [Run the Published Image with Docker Compose](https://github.com/streampack-dev/streampack/blob/main/docs/how-to/deploy/run-the-published-image.md) builds by hand.
+The tool runs Compose in the deployment directory and prints each command as it runs it. Nothing it does is hidden: you can run any step by hand, read `compose.yaml`, or stop using the tool altogether. The directory is an ordinary Compose deployment, the same one streampack's [Run the Published Image with Docker Compose](https://github.com/streampack-dev/streampack/blob/main/docs/how-to/deploy/run-the-published-image.md) builds by hand.
+
+## Any Container Engine
+
+The tool doesn't mind whether Docker or Podman runs the containers. It finds out at the start of each run, and uses that engine's own commands, so what it prints is what ran. It asks each engine only what both answer the same way. Docker's `{{.Label}}` template function, for example, is unknown to Podman, and Podman's `{{index .Labels}}` fails on Docker, so the tool filters by labels and never prints them. Where the engines differ, the tool works with both:
+
+- podman-compose puts the containers in a pod, `pod_<project>`. A hard reset removes it.
+- podman-compose labels a volume with its project but not its name, so the tool finds a volume by its full name, `<project>_<name>`, which both name it.
+- Podman won't guess the registry for a short image name, so `compose.yaml` names `postgres` in full.
+- Fedora, RHEL and Rocky Linux enforce SELinux, so the host directories are mounted with `z`. Elsewhere, `z` does nothing.
+
+[What It Uses](../reference/server-interface.md) lists the commands.
 
 ## Repeatable
 

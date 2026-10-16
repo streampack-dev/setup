@@ -1,31 +1,47 @@
 # What It Uses
 
-Everything the tool does goes through Docker Compose or the server's HTTP API.
+Everything the tool does goes through Compose, the container engine, or the server's HTTP API.
 
-## Docker Compose
+## The Container Engine
+
+The tool works with Docker or Podman. At the start of each run it finds which one is here, and prints it (`Containers: podman, with podman-compose`):
+
+1. Docker, when the `docker` command is Docker's own and its daemon answers (`docker version`). Compose is `docker compose`, or `docker-compose` without the plugin.
+2. Otherwise Podman, when `podman info` works. A `docker` command that is Podman's (`podman-docker`) counts as Podman, and the tool runs `podman` by its own name. Compose is `podman-compose`, or else `podman compose`.
+
+podman-compose must be 1.2.0 or later: older ones give the server `.env`'s quotes as part of each value. The tool stops with that message.
+
+Below, `<compose>` is the Compose command and `<engine>` is `docker` or `podman`. The tool asks the engine only for what both answer the same way: no label templates, and labels only in filters.
+
+## Compose
 
 Every command runs in the deployment directory. The commands that change something are printed as they run, starting with `$`.
 
 | Command | Used by | Printed |
 |---------|---------|---------|
-| `docker compose pull` | `up` | yes |
-| `docker compose up -d` | `up`, `secrets` | yes |
-| `docker compose logs --no-color --tail 300 server-streampack` | `up`, while waiting | no |
-| `docker compose exec -T server-streampack cat /run/streampack/admin-token` | `console`, `secrets` | no |
+| `<compose> pull` | `up` | yes |
+| `<compose> up -d` (with podman-compose, `up -d --force-recreate`) | `up`, `secrets` | yes |
+| `<compose> logs --no-color --tail 300 server-streampack` | `up`, while waiting | no |
+| `<compose> exec -T server-streampack cat /run/streampack/admin-token` | `console`, `secrets` | no |
 
-Two plain `docker` commands are used too, without the deployment directory, since `init` can run before it has anything in it:
+podman-compose recreates a container only when the compose file changes, not `.env`, so `up` tells it to.
+
+Plain engine commands are used too, without the deployment directory, since `init` can run before it has anything in it:
 
 | Command | Used by | Printed |
 |---------|---------|---------|
-| `docker volume ls -q --filter label=com.docker.compose.project=<project> --filter label=com.docker.compose.volume=pgdata` | `init`, when `.env` has no `DB_PASSWORD` | no |
-| `docker rm -f <the project's containers>`, then `docker volume rm <volume>` | `init`, when you agree to start the database afresh | yes |
+| `<engine> volume ls --filter label=com.docker.compose.project=<project> --format {{.Name}}`, looking for `<project>_pgdata` | `init`, when `.env` has no `DB_PASSWORD` | no |
+| `<engine> rm -f <the project's containers>`, then `<engine> volume rm <volume>` | `init`, when you agree to start the database afresh | yes |
 
 A hard reset uses these, also without reading `.env` or the compose file:
 
 | Command | Printed |
 |---------|---------|
-| `docker ps -a`, `docker volume ls` and `docker network ls`, each with `--filter label=com.docker.compose.project=<project>` | no |
-| `docker rm -f <containers>`, `docker volume rm <volumes>`, `docker network rm <networks>` | yes |
+| `<engine> ps -a`, `<engine> volume ls` and `<engine> network ls`, each with `--filter label=com.docker.compose.project=<project>` | no |
+| `<engine> ps -a`, also filtered by `label=com.docker.compose.service=server-streampack`, for the server's image | no |
+| With Podman, `podman pod ls`, for podman-compose's pod `pod_<project>` | no |
+| `<engine> rm -f <containers>`, `podman pod rm -f <pod>`, `<engine> volume rm <volumes>`, `<engine> network rm <networks>` | yes |
+| `<engine> run --rm -v <dir>/media:/clear:z …`, to empty `media/` as the container's root | yes |
 
 `<project>` is the Compose project name: `COMPOSE_PROJECT_NAME` if it's set in the environment, otherwise the directory's name, lower-cased, keeping only letters, digits, `-` and `_`.
 

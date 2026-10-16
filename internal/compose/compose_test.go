@@ -16,12 +16,26 @@ func TestTheFileNamesWhatTheToolRelyOn(t *testing.T) {
 		"env_file: .env",
 		"${STREAMPACK_VERSION:?",
 		"${DB_PASSWORD:?",
-		"- ./media:/opt/streampack/media",
-		"- ./ext:/opt/streampack/ext:ro",
-		"- ./generative:/opt/streampack/generative:ro",
+		"- ./media:/opt/streampack/media:z",
+		"- ./ext:/opt/streampack/ext:ro,z",
+		"- ./generative:/opt/streampack/generative:ro,z",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("compose.yaml lacks %q", want)
+		}
+	}
+}
+
+// Every engine pulls an image by its full name; Podman refuses a short one when it can't ask which
+// registry is meant (setup#13).
+func TestImagesAreNamedInFull(t *testing.T) {
+	for _, line := range strings.Split(string(File), "\n") {
+		image, ok := strings.CutPrefix(strings.TrimSpace(line), "image: ")
+		if !ok {
+			continue
+		}
+		if registry, _, found := strings.Cut(image, "/"); !found || !strings.ContainsAny(registry, ".:") {
+			t.Errorf("%q has no registry", image)
 		}
 	}
 }
