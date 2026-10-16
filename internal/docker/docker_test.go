@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -33,12 +34,52 @@ func TestPrintedCommandsQuoteWhatTheShellWouldSplit(t *testing.T) {
 }
 
 // box is a fake machine: the commands installed, what each command line prints, and which fail.
-// It records every command run, as typed.
+// It records every command run, as typed. requires is Podman's dependency between containers
+// (podman-compose's depends_on): `podman rm` refuses a container another still requires, unless
+// --depend, which removes the dependents with it.
 type box struct {
 	installed map[string]bool
 	prints    map[string]string
 	fails     map[string]bool
+	requires  map[string]string // container: the one it requires
+	removed   map[string]bool
 	ran       []string
+}
+
+// podmanRemove is `podman rm` against requires: an error for a container with dependents left,
+// or for a missing one without --ignore.
+func (b *box) podmanRemove(args []string) error {
+	if b.removed == nil {
+		b.removed = map[string]bool{}
+	}
+	depend, ignore := slices.Contains(args, "--depend"), slices.Contains(args, "--ignore")
+	var remove func(string) error
+	remove = func(name string) error {
+		if b.removed[name] {
+			if ignore {
+				return nil
+			}
+			return errors.New("no such container " + name)
+		}
+		for dependent, required := range b.requires {
+			if required == name && !b.removed[dependent] {
+				if !depend {
+					return errors.New("container " + name + " has dependent containers which must be removed before it")
+				}
+				remove(dependent)
+			}
+		}
+		b.removed[name] = true
+		return nil
+	}
+	for _, a := range args {
+		if !strings.HasPrefix(a, "-") && a != "rm" {
+			if err := remove(a); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (b *box) lookPath(name string) (string, error) {
@@ -53,6 +94,9 @@ func (b *box) run(_ context.Context, _ string, stdout, _ io.Writer, name string,
 	b.ran = append(b.ran, line)
 	if !b.installed[name] || b.fails[line] {
 		return errors.New("exit status 1")
+	}
+	if name == "podman" && len(args) > 0 && args[0] == "rm" && b.requires != nil {
+		return b.podmanRemove(args)
 	}
 	io.WriteString(stdout, b.prints[line])
 	return nil
@@ -221,6 +265,39 @@ func TestClearDirectoryMountsForSELinux(t *testing.T) {
 	b := &box{installed: installed("podman")}
 	CLI{Out: io.Discard, Engine: podmanEngine, Run: b.run}.ClearDirectory(context.Background(), "img", "/srv/q/media")
 	if len(b.ran) != 1 || !strings.HasPrefix(b.ran[0], "podman run --rm -v /srv/q/media:/clear:z ") {
+		t.Errorf("ran %q", b.ran)
+	}
+}
+
+// podman-compose makes depends_on a Podman dependency, and `podman rm` won't remove the database
+// while the server that requires it is there, whatever the order (setup#16).
+func TestPodmanRemovesContainersThatRequireEachOther(t *testing.T) {
+	containers := []string{"q_db_1", "q_server-streampack_1"}
+	b := &box{installed: installed("podman"), requires: map[string]string{"q_server-streampack_1": "q_db_1"}}
+	c := CLI{Dir: "/srv/q", Out: io.Discard, Engine: podmanEngine, Run: b.run}
+	if err := c.RemoveResources(context.Background(), Resources{Containers: containers}); err != nil {
+		t.Fatalf("hard reset: %v (ran %q)", err, b.ran)
+	}
+	for _, name := range containers {
+		if !b.removed[name] {
+			t.Errorf("%s is still there", name)
+		}
+	}
+
+	b = &box{installed: installed("podman"), requires: map[string]string{"q_server-streampack_1": "q_db_1"},
+		prints: map[string]string{"podman ps -aq --filter label=com.docker.compose.project=q": "q_db_1\nq_server-streampack_1\n"}}
+	c.Run = b.run
+	if err := c.RemoveVolume(context.Background(), "q_pgdata"); err != nil {
+		t.Fatalf("fresh database: %v (ran %q)", err, b.ran)
+	}
+}
+
+// Docker has no such dependency and no --depend: it keeps plain rm -f.
+func TestDockerRemovesContainersWithPlainRm(t *testing.T) {
+	b := &box{installed: installed("docker")}
+	CLI{Dir: "/srv/q", Out: io.Discard, Engine: dockerEngine, Run: b.run}.
+		RemoveResources(context.Background(), Resources{Containers: []string{"q-db-1"}})
+	if len(b.ran) != 1 || b.ran[0] != "docker rm -f q-db-1" {
 		t.Errorf("ran %q", b.ran)
 	}
 }

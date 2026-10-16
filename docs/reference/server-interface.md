@@ -24,6 +24,8 @@ Every command runs in the deployment directory. The commands that change somethi
 | `<compose> logs --no-color --tail 300 server-streampack` | `up`, while waiting | no |
 | `<compose> exec -T server-streampack cat /run/streampack/admin-token` | `console`, `secrets` | no |
 
+podman-compose makes `depends_on` a Podman dependency, and Podman won't remove a container that another still requires. So with Podman, `--depend` removes the dependents with it, and `--ignore` skips names already gone.
+
 podman-compose recreates a container only when the compose file changes, not `.env`, so `up` tells it to.
 
 Plain engine commands are used too, without the deployment directory, since `init` can run before it has anything in it:
@@ -31,7 +33,7 @@ Plain engine commands are used too, without the deployment directory, since `ini
 | Command | Used by | Printed |
 |---------|---------|---------|
 | `<engine> volume ls --filter label=com.docker.compose.project=<project> --format {{.Name}}`, looking for `<project>_pgdata` | `init`, when `.env` has no `DB_PASSWORD` | no |
-| `<engine> rm -f <the project's containers>`, then `<engine> volume rm <volume>` | `init`, when you agree to start the database afresh | yes |
+| `<engine> rm -f <the project's containers>` (Podman: `podman rm -f --depend --ignore`), then `<engine> volume rm <volume>` | `init`, when you agree to start the database afresh | yes |
 
 A hard reset uses these, also without reading `.env` or the compose file:
 
@@ -40,7 +42,7 @@ A hard reset uses these, also without reading `.env` or the compose file:
 | `<engine> ps -a`, `<engine> volume ls` and `<engine> network ls`, each with `--filter label=com.docker.compose.project=<project>` | no |
 | `<engine> ps -a`, also filtered by `label=com.docker.compose.service=server-streampack`, for the server's image | no |
 | With Podman, `podman pod ls`, for podman-compose's pod `pod_<project>` | no |
-| `<engine> rm -f <containers>`, `podman pod rm -f <pod>`, `<engine> volume rm <volumes>`, `<engine> network rm <networks>` | yes |
+| `<engine> rm -f <containers>` (Podman: `podman rm -f --depend --ignore`), `podman pod rm -f <pod>`, `<engine> volume rm <volumes>`, `<engine> network rm <networks>` | yes |
 | `<engine> run --rm -v <dir>/media:/clear:z …`, to empty `media/` as the container's root | yes |
 
 `<project>` is the Compose project name: `COMPOSE_PROJECT_NAME` if it's set in the environment, otherwise the directory's name, lower-cased, keeping only letters, digits, `-` and `_`.
