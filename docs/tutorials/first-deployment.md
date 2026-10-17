@@ -122,4 +122,5 @@ docker compose down -v
 
 - [How a Run Goes](../explanation/execution-flow.md): what each step does.
 - [Move Credentials into `.env`](../how-to/move-credentials-into-env.md): what happens once an integration has a token.
+- streampack's [Manage Users](https://github.com/streampack-dev/streampack/blob/main/docs/how-to/deploy/manage-users.md): add people, give them roles, and link their chat accounts. At the console, `whoami` names the account you're signed in as.
 - streampack's [Deploy with Docker for Mattermost and GitLab](https://github.com/streampack-dev/streampack/blob/main/docs/tutorials/deploy-with-docker-for-mattermost-and-gitlab.md).
