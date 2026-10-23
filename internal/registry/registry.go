@@ -43,7 +43,7 @@ func Latest(ctx context.Context, client *http.Client, url string) (string, error
 func Highest(tags []string) (string, error) {
 	best := ""
 	for _, tag := range tags {
-		if release.MatchString(tag) && (best == "" || less(best, tag)) {
+		if IsRelease(tag) && (best == "" || Less(best, tag)) {
 			best = tag
 		}
 	}
@@ -53,7 +53,12 @@ func Highest(tags []string) (string, error) {
 	return best, nil
 }
 
-func less(a, b string) bool {
+// IsRelease says whether tag is a release, x.y.z, and not latest or a suffixed tag such as 1.2.1a.
+func IsRelease(tag string) bool { return release.MatchString(tag) }
+
+// Less says whether release a comes before release b, comparing each part as a number: 1.9.0
+// comes before 1.10.0. Both must be releases (IsRelease).
+func Less(a, b string) bool {
 	as, bs := strings.Split(a, "."), strings.Split(b, ".")
 	for i := range 3 {
 		x, _ := strconv.Atoi(as[i])

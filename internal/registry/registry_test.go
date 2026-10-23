@@ -27,3 +27,23 @@ func TestLatestReadsTheTagList(t *testing.T) {
 		t.Fatalf("got %q, %v", got, err)
 	}
 }
+
+func TestLessComparesReleasesAsNumbers(t *testing.T) {
+	for _, c := range []struct {
+		a, b string
+		want bool
+	}{
+		{"1.3.11", "1.4.1", true},
+		{"1.4.1", "1.3.11", false},
+		{"1.9.0", "1.10.0", true},
+		{"1.99.9", "2.0.0", true},
+		{"1.4.1", "1.4.1", false},
+	} {
+		if got := Less(c.a, c.b); got != c.want {
+			t.Errorf("Less(%s, %s) = %v", c.a, c.b, got)
+		}
+	}
+	if !IsRelease("1.4.1") || IsRelease("latest") || IsRelease("1.4.1a") {
+		t.Error("IsRelease")
+	}
+}
