@@ -1,7 +1,7 @@
 # Command Line
 
 ```text
-streampack-setup [--dir DIR] [--url URL] [--hard-reset] [command]
+streampack-setup [--dir DIR] [--url URL] [--hard-reset] [--update] [command]
 ```
 
 ## Flags
@@ -11,6 +11,7 @@ streampack-setup [--dir DIR] [--url URL] [--hard-reset] [command]
 | `--dir` | `.` | The deployment directory, holding `.env`, `compose.yaml`, `generative/`, `ext/` and `media/`. Every `docker compose` command runs here. |
 | `--url` | `http://127.0.0.1:8080` | Where the server answers from this box. The compose file publishes the API on `127.0.0.1:8080`. |
 | `--hard-reset` | off | First delete the deployment: its containers, volumes and networks, `.env`, the compose file and any override, and `media/`. It keeps `generative/` and `ext/`. You confirm by typing the directory's name. Then run as a first run. Goes with no command, or with `init`; with any other command it exits with status 2. See [Start Over](../how-to/start-over.md). |
+| `--update` | off | First set `STREAMPACK_VERSION` in `.env` to the newest release in the registry, whatever version it is on now (1.3.11 goes to 1.4.1). It writes the number, not `latest`. It shows the change and asks you to confirm; any answer but yes stops it and `.env` stays as it was. It never moves to an older release. If the registry can't be reached, it stops and `.env` stays as it was. Then the run goes on. Goes with no command (on a configured directory; a first run's `init` already offers the newest release), or with `up`; with any other command it exits with status 2. See [Upgrade the Server](../how-to/upgrade-the-server.md). |
 | `--version`, `-v` | | Prints the tool's version, as the `version` command does, and exits with status 0. |
 | `--help`, `-h` | | Prints the usage and exits with status 0. |
 
@@ -52,5 +53,5 @@ Ctrl-C stops the current step and exits with status 0. Nothing half-written is l
 | Status | Meaning |
 |--------|---------|
 | 0 | Done, or interrupted. |
-| 1 | A step failed, or a hard reset was not confirmed. The message starts with `streampack-setup:`. |
-| 2 | An unknown command or flag, more than one command, or `--hard-reset` with a command other than `init`. |
+| 1 | A step failed, or a hard reset or an update was not confirmed. The message starts with `streampack-setup:`. |
+| 2 | An unknown command or flag, more than one command, `--hard-reset` with a command other than `init`, or `--update` with a command other than `up`. |

@@ -33,7 +33,7 @@ func TestFlagsAreReadBeforeOrAfterTheCommand(t *testing.T) {
 
 func TestNoFlagsLeavesTheDefaults(t *testing.T) {
 	o, err := parseArgs(nil, io.Discard)
-	if err != nil || o.command != "" || o.dir != "." || o.url != "http://127.0.0.1:8080" || o.hardReset || o.showVersion {
+	if err != nil || o.command != "" || o.dir != "." || o.url != "http://127.0.0.1:8080" || o.hardReset || o.update || o.showVersion {
 		t.Errorf("no arguments: %+v, %v", o, err)
 	}
 }
@@ -84,5 +84,30 @@ func TestCommandsItKnows(t *testing.T) {
 	}
 	if knownCommand("start") {
 		t.Error("start known")
+	}
+}
+
+func TestUpdateIsReadBeforeOrAfterTheCommand(t *testing.T) {
+	for _, args := range [][]string{{"--update"}, {"-update"}, {"--update", "up"}, {"up", "--update"}, {"up", "-update"}} {
+		o, err := parseArgs(args, io.Discard)
+		if err != nil || !o.update {
+			t.Errorf("%v: update %v, %v", args, o.update, err)
+		}
+	}
+	if o, _ := parseArgs([]string{"up"}, io.Discard); o.update {
+		t.Error("up asked for an update")
+	}
+}
+
+func TestUpdateGoesWithNoCommandOrUp(t *testing.T) {
+	for _, c := range []string{"", "up"} {
+		if !updateAllowed(c) {
+			t.Errorf("%q refused", c)
+		}
+	}
+	for _, c := range []string{"init", "console", "secrets"} {
+		if updateAllowed(c) {
+			t.Errorf("%q allowed", c)
+		}
 	}
 }

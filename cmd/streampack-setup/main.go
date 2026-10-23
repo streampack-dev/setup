@@ -31,6 +31,7 @@ const usage = `streampack-setup brings up a server-streampack with Docker Compos
 Usage: streampack-setup [flags] [command] [flags]
 
 With --hard-reset, it deletes the deployment first, after you confirm, and then runs as a first run.
+With --update, it moves the server to the newest release first, after you confirm, and then runs.
 
 Commands:
   (none)    init if there's no .env yet, then up, then console
@@ -45,6 +46,8 @@ Flags, before or after the command; one dash works as well as two:
   --url URL      the server's address from this box (default "http://127.0.0.1:8080")
   --hard-reset   first delete the deployment (containers, volumes, .env, the compose file,
                  media/) and start from nothing; it keeps generative/ and ext/
+  --update       first set STREAMPACK_VERSION in .env to the newest server release, whatever
+                 version it is on, after you confirm; with no command or with up
   --version, -v  print this tool's version
   --help, -h     print this help
 `
@@ -53,6 +56,7 @@ Flags, before or after the command; one dash works as well as two:
 type options struct {
 	dir, url    string
 	hardReset   bool
+	update      bool
 	showVersion bool
 	command     string
 }
@@ -68,6 +72,7 @@ func parseArgs(args []string, stderr io.Writer) (options, error) {
 	flags.StringVar(&o.dir, "dir", ".", "")
 	flags.StringVar(&o.url, "url", "http://127.0.0.1:8080", "")
 	flags.BoolVar(&o.hardReset, "hard-reset", false, "")
+	flags.BoolVar(&o.update, "update", false, "")
 	flags.BoolVar(&o.showVersion, "version", false, "")
 	flags.BoolVar(&o.showVersion, "v", false, "")
 	var words []string
@@ -117,6 +122,10 @@ func main() {
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)
 	}
+	if o.update && !updateAllowed(command) {
+		fmt.Fprintln(os.Stderr, "streampack-setup: --update goes with no command, or with up")
+		os.Exit(2)
+	}
 
 	absolute, err := filepath.Abs(*dir)
 	if err != nil {
@@ -158,7 +167,10 @@ func main() {
 	case "":
 		configured, err := s.Configured()
 		if err == nil && !configured {
+			// A first run's init already offers the newest release.
 			err = s.Init(ctx)
+		} else if err == nil && o.update {
+			err = s.Update(ctx)
 		}
 		if err == nil {
 			err = s.Up(ctx)
@@ -170,7 +182,14 @@ func main() {
 	case "init":
 		check(s.Init(ctx))
 	case "up":
-		check(s.Up(ctx))
+		var err error
+		if o.update {
+			err = s.Update(ctx)
+		}
+		if err == nil {
+			err = s.Up(ctx)
+		}
+		check(err)
 	case "console":
 		check(s.Console(ctx))
 	case "secrets":
@@ -185,6 +204,10 @@ func knownCommand(c string) bool {
 	}
 	return false
 }
+
+// updateAllowed says whether --update goes with command: an update is followed by a start, so
+// it goes with no command or with up.
+func updateAllowed(command string) bool { return command == "" || command == "up" }
 
 func check(err error) {
 	if err != nil && !errors.Is(err, context.Canceled) {

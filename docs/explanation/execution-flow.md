@@ -6,6 +6,8 @@ Before any of them, the tool finds the container engine, Docker or Podman, and t
 
 With `--hard-reset`, a step comes before all of these: the tool deletes the deployment, after you confirm, so the run that follows is a first run. See [Start Over](../how-to/start-over.md).
 
+With `--update`, on a configured directory, a step comes before `up`: the tool sets `STREAMPACK_VERSION` to the registry's newest release, after you confirm. See [Upgrade the Server](../how-to/upgrade-the-server.md).
+
 ```mermaid
 flowchart TD
     start([streampack-setup]) --> reset{"--hard-reset?"}
@@ -15,7 +17,12 @@ flowchart TD
     configured -- no --> volume{"no DB_PASSWORD, but the<br>database volume exists?"}
     volume -- "no" --> init[init: ask, generate, write .env and compose.yaml]
     volume -- "yes" --> old["ask for its password,<br>or delete the volume"] --> init
-    configured -- yes --> up
+    configured -- yes --> update{"--update?"}
+    update -- no --> up
+    update -- "yes" --> newest{"registry's newest<br>newer than .env's?"}
+    newest -- "no (already on it, or .env is newer)" --> up
+    newest -- "yes, and you confirm" --> pin[write the newest number<br>to STREAMPACK_VERSION] --> up
+    newest -- "you don't confirm, or<br>the registry can't be reached" --> unchanged([stop; .env unchanged])
     init --> up[up: docker compose pull, then up -d]
     up --> wait{"GET /features answers?"}
     wait -- "yes" --> console[console: read the token, open the stream]
